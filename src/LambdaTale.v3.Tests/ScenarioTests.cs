@@ -29,6 +29,7 @@ public class ScenarioTests
     }
 
     [Theory]
+    [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
     public void Theory(int value) => Assert.Equal(0, value);

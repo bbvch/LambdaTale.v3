@@ -9,7 +9,7 @@ public class CombinedTestFramework : TestFramework
         new LambdaTaleDiscoveryFacade(new(assembly));
 
     protected override ITestFrameworkExecutor CreateExecutor(Assembly assembly) =>
-        new ScenarioExecutor(new(assembly));
+        new LambdaTaleExecutorFacade(new(assembly));
 
     public override string TestFrameworkDisplayName => "LambdaTale Combined Test Framework";
 }

@@ -3,21 +3,25 @@ using Xunit.v3;
 
 namespace LambdaTale.v3.Framework;
 
-public class ScenarioExecutor(TestAssemblyFacade testAssembly)
+public class LambdaTaleExecutorFacade(TestAssemblyFacade testAssembly)
     : TestFrameworkExecutor<ITestCase>(testAssembly)
 {
-    public new TestAssemblyFacade TestAssembly { get; } = testAssembly;
+    private new TestAssemblyFacade TestAssembly { get; } = testAssembly;
+
+    private readonly XunitTestFrameworkExecutor xunitExecutor = new(
+        new XunitTestAssembly(testAssembly.Assembly, testAssembly.ConfigFilePath,
+            testAssembly.Assembly.GetName().Version, testAssembly.UniqueID));
 
     protected override ITestFrameworkDiscoverer CreateDiscoverer() =>
         new LambdaTaleDiscoveryFacade(this.TestAssembly);
 
-    public override ValueTask RunTestCases(
+    public override async ValueTask RunTestCases(
         IReadOnlyCollection<ITestCase> testCases,
         IMessageSink executionMessageSink,
         ITestFrameworkExecutionOptions executionOptions,
         CancellationToken cancellationToken)
     {
-        List<ITestCase> xunitTestCases = new();
+        List<IXunitTestCase> xunitTestCases = new();
         List<ITestCase> lambdaTaleTestCases = new();
         foreach (var testCase in testCases)
         {
@@ -27,10 +31,10 @@ public class ScenarioExecutor(TestAssemblyFacade testAssembly)
             }
             else
             {
-                xunitTestCases.Add(testCase);
+                xunitTestCases.Add((IXunitTestCase)testCase); // TODO: This is bad :)
             }
-
         }
-        return new ValueTask();
+        await this.xunitExecutor.RunTestCases(
+             xunitTestCases, executionMessageSink, executionOptions, cancellationToken);
     }
 }
