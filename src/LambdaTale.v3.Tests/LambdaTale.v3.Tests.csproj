@@ -17,4 +17,8 @@
       </PackageReference>
       <PackageReference Include="xunit.v3" />
     </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\LambdaTale.v3\LambdaTale.v3.csproj" />
+    </ItemGroup>
 </Project>

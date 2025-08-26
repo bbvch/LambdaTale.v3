@@ -166,6 +166,12 @@
           "xunit.v3.runner.common": "[3.0.1]"
         }
       },
+      "bbv.LambdaTale.v3": {
+        "type": "Project",
+        "dependencies": {
+          "xunit.v3.extensibility.core": "[3.0.1, )"
+        }
+      },
       "xunit.analyzers": {
         "type": "CentralTransitive",
         "requested": "[1.24.0, )",
