@@ -1,4 +1,7 @@
+using LambdaTale.v3.Framework;
 using Xunit;
+
+[assembly: TestFramework(typeof(ScenarioTestFramework))]
 
 namespace LambdaTale.v3.Tests;
 

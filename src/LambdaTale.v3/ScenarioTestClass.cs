@@ -41,6 +41,8 @@ public sealed class ScenarioTestClass : ITestClass, IXunitSerializable
         this.@class ?? throw new InvalidOperationException(
             $"Attempted to retrieve an uninitialized {nameof(ScenarioTestClass)}.{nameof(this.Class)}");
 
+    public MethodInfo[] Methods => this.Class.GetMethods(MethodBindingFlags);
+
     public ScenarioTestAssembly TestAssembly =>
         this.testAssembly ?? throw new InvalidOperationException(
             $"Attempted to retrieve an uninitialized {nameof(ScenarioTestClass)}.{nameof(this.TestAssembly)}");
