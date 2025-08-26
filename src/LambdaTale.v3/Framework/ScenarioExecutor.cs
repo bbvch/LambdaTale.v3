@@ -3,13 +3,13 @@ using Xunit.v3;
 
 namespace LambdaTale.v3.Framework;
 
-public class ScenarioExecutor(ScenarioTestAssembly testAssembly)
+public class ScenarioExecutor(TestAssemblyFacade testAssembly)
     : TestFrameworkExecutor<ITestCase>(testAssembly)
 {
-    public new ScenarioTestAssembly TestAssembly { get; } = testAssembly;
+    public new TestAssemblyFacade TestAssembly { get; } = testAssembly;
 
     protected override ITestFrameworkDiscoverer CreateDiscoverer() =>
-        new ScenarioDiscoverer(this.TestAssembly);
+        new LambdaTaleDiscoveryFacade(this.TestAssembly);
 
     public override ValueTask RunTestCases(
         IReadOnlyCollection<ITestCase> testCases,
