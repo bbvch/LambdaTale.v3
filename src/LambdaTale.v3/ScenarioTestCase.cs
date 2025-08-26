@@ -2,37 +2,42 @@
 using System.Diagnostics;
 using Xunit.Internal;
 using Xunit.Sdk;
-using Xunit.v3;
 
 namespace LambdaTale.v3;
 
-[DebuggerDisplay(@"\{ class = {ScenarioTestMethod.TestClass.Class.Name}, method = {ScenarioTestMethod.Method.Name}, display = {TestCaseDisplayName} \}")]
+[DebuggerDisplay(
+    @"\{ class = {ScenarioTestMethod.TestClass.Class.Name}, method = {ScenarioTestMethod.Method.Name}, display = {TestCaseDisplayName} \}")]
 public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 {
+    private ScenarioTestMethod? scenarioTestMethod;
+
     [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase()
     {
     }
 
-    public ScenarioTestCase(IXunitTestMethod scenarioTestMethod)
+    public ScenarioTestCase(ScenarioTestMethod scenarioTestMethod)
     {
-        this.ScenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
+        this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
     }
 
-    public IXunitTestClass ScenarioTestClass => this.ScenarioTestMethod.TestClass;
+    public ScenarioTestClass ScenarioTestClass => this.ScenarioTestMethod.ScenarioTestClass;
 
-    public IXunitTestCollection ScenarioTestCollection => this.ScenarioTestMethod.TestClass.TestCollection;
+    public ScenarioTestCollection ScenarioTestCollection =>
+        this.ScenarioTestMethod.ScenarioTestClass.ScenarioTestCollection;
 
-    public IXunitTestMethod ScenarioTestMethod { get; set; }
+    public ScenarioTestMethod ScenarioTestMethod =>
+        this.scenarioTestMethod ?? throw new InvalidOperationException(
+            $"Attempted to retrieve an uninitialized {nameof(ScenarioTestCase)}.{nameof(this.ScenarioTestMethod)}");
 
     public string UniqueID => UniqueIDGenerator.ForTestCase(this.ScenarioTestMethod.UniqueID,
         testMethodGenericTypes: null, testMethodArguments: null);
 
     public void Deserialize(IXunitSerializationInfo info)
     {
-        this.ScenarioTestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization",
-            info.GetValue<XunitTestMethod>("tm"));
+        this.scenarioTestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization",
+            info.GetValue<ScenarioTestMethod>("tm"));
     }
 
     public void Serialize(IXunitSerializationInfo info)
@@ -41,6 +46,9 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     }
 
 
+    public string TestCaseDisplayName =>
+        $"{this.ScenarioTestClass.TestClassName};{this.ScenarioTestMethod.MethodName}";
+
     #region StuffIDontCareAboutRightNow
 
     bool ITestCaseMetadata.Explicit => false;
@@ -48,9 +56,6 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     string? ITestCaseMetadata.SkipReason => null;
 
     string? ITestCaseMetadata.SourceFilePath => null;
-
-    string ITestCaseMetadata.TestCaseDisplayName =>
-        $"{this.ScenarioTestClass.TestClassName};{this.ScenarioTestMethod.MethodName}";
 
     int? ITestCaseMetadata.SourceLineNumber => null;
 
