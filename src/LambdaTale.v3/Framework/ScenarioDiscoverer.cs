@@ -5,13 +5,13 @@ using Xunit.v3;
 
 namespace LambdaTale.v3.Framework;
 
-public class ScenarioDiscoverer(ScenarioTestAssembly testAssembly)
-    : TestFrameworkDiscoverer<ScenarioTestClass>(testAssembly)
+public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
+    : TestFrameworkDiscoverer<ScenarioTestClass>(scenarioTestAssembly)
 {
-    public new ScenarioTestAssembly TestAssembly { get; } = testAssembly;
+    private ScenarioTestAssembly ScenarioTestAssembly { get; } = scenarioTestAssembly;
 
     protected override ValueTask<ScenarioTestClass> CreateTestClass(Type @class) =>
-        new(new ScenarioTestClass(this.TestAssembly, @class));
+        new(new ScenarioTestClass(this.ScenarioTestAssembly, @class));
 
     protected override async ValueTask<bool> FindTestsForType(
         ScenarioTestClass testClass,
@@ -45,7 +45,7 @@ public class ScenarioDiscoverer(ScenarioTestAssembly testAssembly)
         return true;
     }
 
-    private static async ValueTask<bool> FindTestsForMethod(
+    public static async ValueTask<bool> FindTestsForMethod(
         ScenarioTestMethod testMethod,
         ITestFrameworkDiscoveryOptions discoveryOptions,
         Func<ScenarioTestCase, ValueTask<bool>> discoveryCallback)
@@ -54,5 +54,5 @@ public class ScenarioDiscoverer(ScenarioTestAssembly testAssembly)
         return await discoveryCallback(testCase);
     }
 
-    protected override Type[] GetExportedTypes() => this.TestAssembly.Assembly.ExportedTypes.ToArray();
+    protected override Type[] GetExportedTypes() => this.ScenarioTestAssembly.Assembly.ExportedTypes.ToArray();
 }

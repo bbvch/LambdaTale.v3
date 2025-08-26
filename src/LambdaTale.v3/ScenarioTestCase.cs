@@ -6,7 +6,7 @@ using Xunit.Sdk;
 namespace LambdaTale.v3;
 
 [DebuggerDisplay(
-    @"\{ class = {ScenarioTestMethod.TestClass.Class.Name}, method = {ScenarioTestMethod.Method.Name}, display = {TestCaseDisplayName} \}")]
+    @"\{ class = {ScenarioTestMethod.TestClass.TestClassName}, method = {ScenarioTestMethod.Method.Name}, display = {TestCaseDisplayName} \}")]
 public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 {
     private ScenarioTestMethod? scenarioTestMethod;
@@ -47,7 +47,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 
 
     public string TestCaseDisplayName =>
-        $"{this.ScenarioTestClass.TestClassName};{this.ScenarioTestMethod.MethodName}";
+        this.ScenarioTestMethod.MethodName;
 
     #region StuffIDontCareAboutRightNow
 
