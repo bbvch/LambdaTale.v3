@@ -1,17 +1,54 @@
-﻿using Xunit.Sdk;
+﻿using System.ComponentModel;
+using Xunit.Internal;
+using Xunit.Sdk;
 
 namespace LambdaTale.v3;
 
-public sealed class ScenarioStep(ScenarioTestCase parentTestCase, string tale, Action lambda) : ITest
+public sealed class ScenarioStep : ITest, IXunitSerializable
 {
-    public ScenarioTestCase ParentTestCase { get; } = parentTestCase;
+    private ScenarioTestCase? parentTestCase;
+    private Action? lambda;
+    private readonly int testIndex;
+    private string? tale;
 
-    public Action Lambda { get; } = lambda;
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
+    public ScenarioStep()
+    {
+    }
 
-    public string TestDisplayName { get; } = tale;
+    public ScenarioStep(ScenarioTestCase parentTestCase, string tale, Action lambda, int testIndex)
+    {
+        this.parentTestCase = parentTestCase;
+        this.lambda = lambda;
+        this.testIndex = testIndex;
+        this.tale = tale;
+    }
+
+    public ScenarioTestCase ParentTestCase =>
+        this.parentTestCase ?? throw new InvalidOperationException(
+            $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.ParentTestCase)}");
+
+    public Action Lambda =>
+        this.lambda ?? throw new InvalidOperationException(
+            $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.Lambda)}");
+
+    public string TestDisplayName => this.tale ?? this.ParentTestCase.TestCaseDisplayName;
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
 
-    public string UniqueID => UniqueIDGenerator.ForTest(this.ParentTestCase.UniqueID, 0);
+    public string UniqueID => UniqueIDGenerator.ForTest(this.ParentTestCase.UniqueID, this.testIndex);
     ITestCase ITest.TestCase => this.ParentTestCase;
+
+    public void Deserialize(IXunitSerializationInfo info)
+    {
+        this.parentTestCase = Guard.NotNull("", info.GetValue<ScenarioTestCase>("ptc"));
+        this.tale = Guard.NotNull("", info.GetValue<string>("tale"));
+    }
+
+    public void Serialize(IXunitSerializationInfo info)
+    {
+        info.AddValue("ptc", this.ParentTestCase);
+        info.AddValue("tale", this.TestDisplayName);
+    }
 }

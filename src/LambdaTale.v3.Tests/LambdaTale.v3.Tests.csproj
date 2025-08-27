@@ -21,4 +21,8 @@
     <ItemGroup>
       <ProjectReference Include="..\LambdaTale.v3\LambdaTale.v3.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
 </Project>

@@ -52,9 +52,9 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     public ValueTask<IReadOnlyCollection<ScenarioStep>> CreateSteps() =>
         // TODO: Create the actual steps
         new([
-            new ScenarioStep(this, "Step 1", () => Console.WriteLine("Hello, Step 1!")),
-            new ScenarioStep(this, "Step 2", () => Console.WriteLine("Hello, Step 2!")),
-            new ScenarioStep(this, "Boom", () => throw new NotImplementedException())
+            new ScenarioStep(this, "Step 1", () => Console.WriteLine("Hello, Step 1!"), 0),
+            new ScenarioStep(this, "Step 2", () => Console.WriteLine("Hello, Step 2!"), 1),
+            new ScenarioStep(this, "Boom", () => throw new NotImplementedException(), 2)
         ]);
 
     #region StuffIDontCareAboutRightNow
