@@ -10,16 +10,30 @@ namespace LambdaTale.v3;
 public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 {
     private ScenarioTestMethod? scenarioTestMethod;
+    private string? seed;
+    private Lazy<string> uniqueId;
 
     [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase()
     {
+        this.uniqueId = new(() =>
+        {
+            using var generator = new UniqueIDGenerator();
+            var baseId = UniqueIDGenerator.ForTestCase(this.scenarioTestMethod!.UniqueID, null, null);
+            generator.Add(baseId);
+            generator.Add(new Random().Next().ToString()); // WTF??
+            generator.Add(this.seed!);
+            return generator.Compute();
+        });
     }
 
-    public ScenarioTestCase(ScenarioTestMethod scenarioTestMethod)
+#pragma warning disable CS0618 // Type or member is obsolete
+    public ScenarioTestCase(ScenarioTestMethod scenarioTestMethod, string caseIndex) : this()
+#pragma warning restore CS0618 // Type or member is obsolete
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
+        this.seed = Guard.ArgumentNotNullOrEmpty(caseIndex);
     }
 
     public ScenarioTestClass ScenarioTestClass => this.ScenarioTestMethod.ScenarioTestClass;
@@ -31,23 +45,24 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         this.scenarioTestMethod ?? throw new InvalidOperationException(
             $"Attempted to retrieve an uninitialized {nameof(ScenarioTestCase)}.{nameof(this.ScenarioTestMethod)}");
 
-    public string UniqueID => UniqueIDGenerator.ForTestCase(this.ScenarioTestMethod.UniqueID,
-        testMethodGenericTypes: null, testMethodArguments: null);
+    public string UniqueID => this.uniqueId.Value;
 
     public void Deserialize(IXunitSerializationInfo info)
     {
         this.scenarioTestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization",
             info.GetValue<ScenarioTestMethod>("tm"));
+        this.seed = Guard.NotNull("", info.GetValue<string>("seed"));
     }
 
     public void Serialize(IXunitSerializationInfo info)
     {
         info.AddValue("tm", this.ScenarioTestMethod);
+        info.AddValue("seed", this.seed);
     }
 
 
-    public string TestCaseDisplayName =>
-        this.ScenarioTestMethod.MethodName;
+    public string TestCaseDisplayName => //this.ScenarioTestMethod.Method.GetDisplayNameWithArguments(this.ScenarioTestMethod.MethodName, [this.seed], null);
+        $"{this.ScenarioTestMethod.MethodName}: {this.seed}";
 
     public ValueTask<IReadOnlyCollection<ScenarioStep>> CreateSteps() =>
         // TODO: Create the actual steps

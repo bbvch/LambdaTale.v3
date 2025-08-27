@@ -1,3 +1,4 @@
+using Xunit.Internal;
 using Xunit.Sdk;
 using Xunit.v3;
 
@@ -20,6 +21,22 @@ public class
         await ctxt.InitializeAsync();
 
         return await this.Run(ctxt);
+    }
+
+    protected override ValueTask<bool> OnTestMethodStarting(ScenarioTestMethodRunnerContext ctxt)
+    {
+		Guard.ArgumentNotNull(ctxt);
+
+		return new(ctxt.MessageBus.QueueMessage(new TestMethodStarting
+		{
+			AssemblyUniqueID = ctxt.TestMethod.TestClass.TestCollection.TestAssembly.UniqueID,
+			MethodArity = ctxt.TestMethod.MethodArity,
+			MethodName = Guard.ArgumentNotNull(ctxt).TestMethod.MethodName,
+			TestClassUniqueID = ctxt.TestMethod.TestClass.UniqueID,
+			TestCollectionUniqueID = ctxt.TestMethod.TestClass.TestCollection.UniqueID,
+			TestMethodUniqueID = ctxt.TestMethod.UniqueID,
+			Traits = ctxt.TestMethod.Traits,
+		}));
     }
 
     protected override ValueTask<RunSummary> RunTestCase(

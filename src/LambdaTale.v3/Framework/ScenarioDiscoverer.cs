@@ -50,7 +50,11 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
         ITestFrameworkDiscoveryOptions discoveryOptions,
         Func<ScenarioTestCase, ValueTask<bool>> discoveryCallback)
     {
-        var testCase = new ScenarioTestCase(testMethod);
+        var testCase = new ScenarioTestCase(testMethod, "asdf");
+        // testCase.UniqueID = "asdf";
+        var tc2 = new ScenarioTestCase(testMethod, "jklö");
+        // tc2.UniqueID = "jklö";
+        await discoveryCallback(tc2);
         return await discoveryCallback(testCase);
     }
 

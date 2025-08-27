@@ -12,14 +12,13 @@ public sealed class ScenarioTestMethod : ITestMethod, IXunitSerializable
     private ScenarioTestClass? scenarioTestClass;
 
     private readonly Lazy<IReadOnlyDictionary<string, IReadOnlyCollection<string>>> traits;
-    private readonly Lazy<string> uniqueID;
+    private string? uniqueID;
 
     [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestMethod()
     {
         this.traits = new(() => ExtensibilityPointFactory.GetMethodTraits(this.Method, this.ScenarioTestClass.Traits));
-        this.uniqueID = new(() => UniqueIDGenerator.ForTestMethod(this.ScenarioTestClass.UniqueID, this.MethodName));
     }
 
 #pragma warning disable CS0618 // Type or member is obsolete
@@ -28,6 +27,7 @@ public sealed class ScenarioTestMethod : ITestMethod, IXunitSerializable
     {
         this.scenarioTestClass = scenarioTestClass;
         this.method = method;
+        this.uniqueID = UniqueIDGenerator.ForTestMethod(scenarioTestClass.UniqueID, this.method.Name);
     }
 
     public MethodInfo Method =>
@@ -41,11 +41,11 @@ public sealed class ScenarioTestMethod : ITestMethod, IXunitSerializable
 
     public int? MethodArity => this.Method.GetArity();
 
-    public string MethodName => this.Method.Name;
+    public new string MethodName => this.Method.Name;
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.traits.Value;
 
-    public string UniqueID => this.uniqueID.Value;
+    public string UniqueID => this.uniqueID!;
 
     public ITestClass TestClass => this.ScenarioTestClass;
 
@@ -53,6 +53,7 @@ public sealed class ScenarioTestMethod : ITestMethod, IXunitSerializable
     {
         this.scenarioTestClass = Guard.NotNull("Could not retrieve TestClass from serialization",
             info.GetValue<ScenarioTestClass>("c"));
+        this.uniqueID = Guard.NotNull("", info.GetValue<string>("id"));
 
         var reflectedType = Guard.NotNull("Could not retrieve the class name of the test method",
             info.GetValue<string>("t"));
@@ -73,5 +74,6 @@ public sealed class ScenarioTestMethod : ITestMethod, IXunitSerializable
         info.AddValue("c", this.ScenarioTestClass);
         info.AddValue("t", this.Method.ReflectedType.AssemblyQualifiedName);
         info.AddValue("n", this.MethodName);
+        info.AddValue("id", this.UniqueID);
     }
 }
