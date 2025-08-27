@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Xunit.Sdk;
 using Xunit.v3;
 
@@ -13,7 +14,9 @@ public class ScenarioTestCaseRunner : TestCaseRunner<ScenarioTestCaseRunnerConte
         ExceptionAggregator aggregator,
         CancellationTokenSource cancellationTokenSource)
     {
-        await using var ctxt = new ScenarioTestCaseRunnerContext(testCase, messageBus, aggregator,
+        var tests = await aggregator.RunAsync(testCase.CreateSteps, []);
+
+        await using var ctxt = new ScenarioTestCaseRunnerContext(testCase, tests, messageBus, aggregator,
             cancellationTokenSource);
         await ctxt.InitializeAsync();
 
@@ -27,12 +30,12 @@ public class ScenarioTestCaseRunner : TestCaseRunner<ScenarioTestCaseRunnerConte
 
 public class ScenarioTestCaseRunnerContext(
     ScenarioTestCase testCase,
+    IReadOnlyCollection<ScenarioStep> testSteps,
     IMessageBus messageBus,
     ExceptionAggregator aggregator,
     CancellationTokenSource cancellationTokenSource) :
     TestCaseRunnerContext<ScenarioTestCase, ScenarioStep>(testCase, ExplicitOption.Off, messageBus, aggregator,
         cancellationTokenSource)
 {
-    public override IReadOnlyCollection<ScenarioStep> Tests =>
-        [new ScenarioStep(this.TestCase, null)];
+    public override IReadOnlyCollection<ScenarioStep> Tests => testSteps;
 }

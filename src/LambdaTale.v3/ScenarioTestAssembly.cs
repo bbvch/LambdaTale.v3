@@ -17,7 +17,14 @@ public sealed class ScenarioTestAssembly : ITestAssembly, IXunitSerializable
     {
         this.assemblyName = new(() => this.Assembly.GetName().FullName);
         this.traits = new(() => ExtensibilityPointFactory.GetAssemblyTraits(this.Assembly));
-        this.uniqueID = new(() => UniqueIDGenerator.ForAssembly(this.Assembly.Location, this.ConfigFilePath));
+        this.uniqueID = new(() =>
+        {
+            var generator = new UniqueIDGenerator();
+            var assemblyId = UniqueIDGenerator.ForAssembly(this.Assembly.Location, this.ConfigFilePath);
+            generator.Add(assemblyId);
+            generator.Add("LambdaTale.v3");
+            return generator.Compute();
+        });
     }
 
 #pragma warning disable CS0618 // Type or member is obsolete

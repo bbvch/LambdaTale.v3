@@ -2,17 +2,13 @@
 
 namespace LambdaTale.v3;
 
-public sealed class ScenarioStep(ScenarioTestCase parentTestCase, Action lambda) : ITest
+public sealed class ScenarioStep(ScenarioTestCase parentTestCase, string tale, Action lambda) : ITest
 {
     public ScenarioTestCase ParentTestCase { get; } = parentTestCase;
 
-    public Action Lambda { get; } = () =>
-    {
-        Console.WriteLine("Hello, world!");
-        throw new NotImplementedException("This test is throwing an exception");
-    };
+    public Action Lambda { get; } = lambda;
 
-    public string TestDisplayName { get; } = parentTestCase.TestCaseDisplayName;
+    public string TestDisplayName { get; } = tale;
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
 
