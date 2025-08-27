@@ -1,5 +1,4 @@
-﻿using Xunit.Internal;
-using Xunit.Sdk;
+﻿using Xunit.Sdk;
 
 namespace LambdaTale.v3;
 
@@ -7,7 +6,11 @@ public sealed class ScenarioStep(ScenarioTestCase parentTestCase, Action lambda)
 {
     public ScenarioTestCase ParentTestCase { get; } = parentTestCase;
 
-    public Action Lambda { get; } = Guard.ArgumentNotNull(lambda);
+    public Action Lambda { get; } = () =>
+    {
+        Console.WriteLine("Hello, world!");
+        throw new NotImplementedException("This test is throwing an exception");
+    };
 
     public string TestDisplayName { get; } = parentTestCase.TestCaseDisplayName;
 

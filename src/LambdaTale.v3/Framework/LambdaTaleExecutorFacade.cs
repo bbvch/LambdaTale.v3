@@ -12,6 +12,9 @@ public class LambdaTaleExecutorFacade(TestAssemblyFacade testAssembly)
         new XunitTestAssembly(testAssembly.Assembly, testAssembly.ConfigFilePath,
             testAssembly.Assembly.GetName().Version, testAssembly.UniqueID));
 
+    private readonly LambdaTaleExecutor lambdaTaleExecutor = new(
+        new ScenarioTestAssembly(testAssembly.Assembly, testAssembly.ConfigFilePath));
+
     protected override ITestFrameworkDiscoverer CreateDiscoverer() =>
         new LambdaTaleDiscoveryFacade(this.TestAssembly);
 
@@ -34,7 +37,10 @@ public class LambdaTaleExecutorFacade(TestAssemblyFacade testAssembly)
                 xunitTestCases.Add((IXunitTestCase)testCase); // TODO: This is bad :)
             }
         }
+
         await this.xunitExecutor.RunTestCases(
-             xunitTestCases, executionMessageSink, executionOptions, cancellationToken);
+            xunitTestCases, executionMessageSink, executionOptions, cancellationToken);
+        await this.lambdaTaleExecutor.RunTestCases(
+            lambdaTaleTestCases, executionMessageSink, executionOptions, cancellationToken);
     }
 }
