@@ -16,7 +16,8 @@ public class
         ExceptionAggregator aggregator,
         CancellationTokenSource cancellationTokenSource)
     {
-        await using var ctxt = new ScenarioTestMethodRunnerContext(testMethod, testCases, messageBus, aggregator,
+        await using var ctxt = new ScenarioTestMethodRunnerContext(testMethod,  testCases, messageBus,
+            aggregator,
             cancellationTokenSource);
         await ctxt.InitializeAsync();
 
@@ -25,18 +26,18 @@ public class
 
     protected override ValueTask<bool> OnTestMethodStarting(ScenarioTestMethodRunnerContext ctxt)
     {
-		Guard.ArgumentNotNull(ctxt);
+        Guard.ArgumentNotNull(ctxt);
 
-		return new(ctxt.MessageBus.QueueMessage(new TestMethodStarting
-		{
-			AssemblyUniqueID = ctxt.TestMethod.TestClass.TestCollection.TestAssembly.UniqueID,
-			MethodArity = ctxt.TestMethod.MethodArity,
-			MethodName = Guard.ArgumentNotNull(ctxt).TestMethod.MethodName,
-			TestClassUniqueID = ctxt.TestMethod.TestClass.UniqueID,
-			TestCollectionUniqueID = ctxt.TestMethod.TestClass.TestCollection.UniqueID,
-			TestMethodUniqueID = ctxt.TestMethod.UniqueID,
-			Traits = ctxt.TestMethod.Traits,
-		}));
+        return new(ctxt.MessageBus.QueueMessage(new TestMethodStarting
+        {
+            AssemblyUniqueID = ctxt.TestMethod.TestClass.TestCollection.TestAssembly.UniqueID,
+            MethodArity = ctxt.TestMethod.MethodArity,
+            MethodName = Guard.ArgumentNotNull(ctxt).TestMethod.MethodName,
+            TestClassUniqueID = ctxt.TestMethod.TestClass.UniqueID,
+            TestCollectionUniqueID = ctxt.TestMethod.TestClass.TestCollection.UniqueID,
+            TestMethodUniqueID = ctxt.TestMethod.UniqueID,
+            Traits = ctxt.TestMethod.Traits,
+        }));
     }
 
     protected override ValueTask<RunSummary> RunTestCase(

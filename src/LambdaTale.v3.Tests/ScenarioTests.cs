@@ -28,6 +28,20 @@ public class ScenarioTests
             => Assert.Equal(2, x));
     }
 
+    [Scenario]
+    public void Another_Scenario()
+    {
+        var x = 0;
+        "Given a Tale setting a initial value of 1".x(()
+            => x = 1);
+
+        "When a Tale to increment the value is executed".x(()
+            => x += 1);
+
+        "Then the value has changed".x(()
+            => Assert.Equal(2, x));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]

@@ -30,7 +30,7 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
 
             try
             {
-                if (!await FindTestsForMethod(testMethod, discoveryOptions, discoveryCallback))
+                if (!await FindTestsForMethod(testClass, testMethod, discoveryOptions, discoveryCallback))
                 {
                     return false;
                 }
@@ -46,16 +46,32 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
     }
 
     public static async ValueTask<bool> FindTestsForMethod(
+        ScenarioTestClass testClass,
         ScenarioTestMethod testMethod,
         ITestFrameworkDiscoveryOptions discoveryOptions,
         Func<ScenarioTestCase, ValueTask<bool>> discoveryCallback)
     {
-        var testCase = new ScenarioTestCase(testMethod, "asdf");
-        // testCase.UniqueID = "asdf";
-        var tc2 = new ScenarioTestCase(testMethod, "jklö");
-        // tc2.UniqueID = "jklö";
-        await discoveryCallback(tc2);
-        return await discoveryCallback(testCase);
+        using var ctx = Scenario.Acquire();
+        var tc = Activator.CreateInstance(testClass.Class);
+
+        testMethod.Method.Invoke(tc, null);
+
+        var steps = Scenario.TestDefinitions.Select(td =>
+        {
+            var tci = new ScenarioTestCase(testMethod, td.Tale, td.Lambda, td.index);
+            return (td.index, tci);
+        });
+        steps = steps.OrderBy(x => x.index);
+
+        foreach (var (_, test) in steps)
+        {
+            if (!await discoveryCallback(test))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     protected override Type[] GetExportedTypes() => this.ScenarioTestAssembly.Assembly.ExportedTypes.ToArray();

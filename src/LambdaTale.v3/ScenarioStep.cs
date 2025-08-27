@@ -33,7 +33,7 @@ public sealed class ScenarioStep : ITest, IXunitSerializable
         this.lambda ?? throw new InvalidOperationException(
             $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.Lambda)}");
 
-    public string TestDisplayName => $"{this.ParentTestCase.TestCaseDisplayName}.{this.tale}";
+    public string TestDisplayName => $"{this.ParentTestCase.ScenarioTestMethod.Method.Name}.{this.tale}";
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
 

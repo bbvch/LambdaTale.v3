@@ -10,8 +10,10 @@ namespace LambdaTale.v3;
 public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 {
     private ScenarioTestMethod? scenarioTestMethod;
-    private string? seed;
+    private string? tale;
     private Lazy<string> uniqueId;
+    private readonly Action lambda;
+    private readonly int caseIndex;
 
     [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
@@ -23,17 +25,23 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
             var baseId = UniqueIDGenerator.ForTestCase(this.scenarioTestMethod!.UniqueID, null, null);
             generator.Add(baseId);
             generator.Add(new Random().Next().ToString()); // WTF??
-            generator.Add(this.seed!);
+            generator.Add(this.tale!);
             return generator.Compute();
         });
     }
 
 #pragma warning disable CS0618 // Type or member is obsolete
-    public ScenarioTestCase(ScenarioTestMethod scenarioTestMethod, string caseIndex) : this()
+    public ScenarioTestCase(
+        ScenarioTestMethod scenarioTestMethod,
+        string tale,
+        Action lambda,
+        int caseIndex) : this()
 #pragma warning restore CS0618 // Type or member is obsolete
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
-        this.seed = Guard.ArgumentNotNullOrEmpty(caseIndex);
+        this.tale = Guard.ArgumentNotNullOrEmpty(tale);
+        this.lambda = lambda;
+        this.caseIndex = caseIndex;
     }
 
     public ScenarioTestClass ScenarioTestClass => this.ScenarioTestMethod.ScenarioTestClass;
@@ -51,25 +59,23 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     {
         this.scenarioTestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization",
             info.GetValue<ScenarioTestMethod>("tm"));
-        this.seed = Guard.NotNull("", info.GetValue<string>("seed"));
+        this.tale = Guard.NotNull("", info.GetValue<string>("seed"));
     }
 
     public void Serialize(IXunitSerializationInfo info)
     {
         info.AddValue("tm", this.ScenarioTestMethod);
-        info.AddValue("seed", this.seed);
+        info.AddValue("seed", this.tale);
     }
 
 
-    public string TestCaseDisplayName => //this.ScenarioTestMethod.Method.GetDisplayNameWithArguments(this.ScenarioTestMethod.MethodName, [this.seed], null);
-        $"{this.ScenarioTestMethod.MethodName}: {this.seed}";
+    public string
+        TestCaseDisplayName => //this.ScenarioTestMethod.Method.GetDisplayNameWithArguments(this.ScenarioTestMethod.MethodName, [this.seed], null);
+        $"{this.ScenarioTestMethod.MethodName}: {this.tale}";
 
     public ValueTask<IReadOnlyCollection<ScenarioStep>> CreateSteps() =>
-        // TODO: Create the actual steps
         new([
-            new ScenarioStep(this, "Step 1", () => Console.WriteLine("Hello, Step 1!"), 0),
-            new ScenarioStep(this, "Step 2", () => Console.WriteLine("Hello, Step 2!"), 1),
-            new ScenarioStep(this, "Boom", () => throw new NotImplementedException(), 2)
+            new ScenarioStep(this, this.tale ?? string.Empty, this.lambda, this.caseIndex)
         ]);
 
     #region StuffIDontCareAboutRightNow
