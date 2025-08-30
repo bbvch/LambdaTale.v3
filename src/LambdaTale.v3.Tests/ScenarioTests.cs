@@ -29,17 +29,19 @@ public class ScenarioTests
     }
 
     [Scenario]
-    public void Another_Scenario()
+    public void ScenarioWithInitializedContextOutsideOfSteps()
     {
-        var x = 0;
-        "Given a Tale setting a initial value of 1".x(()
-            => x = 1);
+        // NOTE: This should really not happen, as it doesn't make sense to write code outside of step definitions.
+        // Code written before the first step should be able to be reasonably handled, though.
+        // Any code in between, or after all, steps is undefined behavior.
+        var x = 8;
+        $"Given a value was initialized outside of the steps with value [{x}]".x(() => { });
 
         "When a Tale to increment the value is executed".x(()
             => x += 1);
 
         "Then the value has changed".x(()
-            => Assert.Equal(2, x));
+            => Assert.Equal(9, x));
     }
 
     [Theory]
