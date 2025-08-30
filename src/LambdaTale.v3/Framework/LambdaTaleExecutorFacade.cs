@@ -1,4 +1,5 @@
 ﻿using LambdaTale.v3.Execution;
+using Xunit.Internal;
 using Xunit.Sdk;
 using Xunit.v3;
 
@@ -37,26 +38,40 @@ public class LambdaTaleExecutorFacade(TestAssemblyFacade testAssembly)
             }
         }
 
-        // TODO: Right now the summary will only include the first of this invocations. This is because of the runners
-        //  Shutting down after handling the first "AssemblyFinished" message
-        await RunLambdaTaleTests(this.LambdaTaleAssembly, lambdaTaleTestCases.Cast<ScenarioTestCase>().ToArray(),
+        var testSummary = await RunLambdaTaleTests(this.LambdaTaleAssembly,
+            lambdaTaleTestCases.Cast<ScenarioTestCase>().ToArray(),
             executionMessageSink, executionOptions, cancellationToken);
 
-        await RunXunitTests(this.XunitTestAssembly, xunitTestCases,
-            executionMessageSink, executionOptions, cancellationToken);
+        testSummary.Aggregate(await RunXunitTests(this.XunitTestAssembly, xunitTestCases,
+            executionMessageSink, executionOptions, cancellationToken));
+
+        using IMessageBus messageBus = executionOptions.SynchronousMessageReportingOrDefault()
+            ? new SynchronousMessageBus(executionMessageSink, executionOptions.StopOnTestFailOrDefault())
+            : new MessageBus(executionMessageSink, executionOptions.StopOnTestFailOrDefault());
+
+        _ = messageBus.QueueMessage(new TestAssemblyFinished
+        {
+            AssemblyUniqueID = this.TestAssembly.UniqueID,
+            FinishTime = DateTimeOffset.Now,
+            ExecutionTime = testSummary.Time,
+            TestsFailed = testSummary.Failed,
+            TestsNotRun = testSummary.NotRun,
+            TestsSkipped = testSummary.Skipped,
+            TestsTotal = testSummary.Total,
+        });
     }
 
-    private static async ValueTask RunXunitTests(
+    private static async ValueTask<RunSummary> RunXunitTests(
         IXunitTestAssembly testAssembly,
         IReadOnlyCollection<IXunitTestCase> testCases,
         IMessageSink executionMessageSink,
         ITestFrameworkExecutionOptions executionOptions,
         CancellationToken cancellationToken) =>
-        await XunitTestAssemblyRunner.Instance.Run(testAssembly, testCases, executionMessageSink, executionOptions,
+        await XunitAssemblyRunnerWrapper.Instance.Run(testAssembly, testCases, executionMessageSink, executionOptions,
             cancellationToken);
 
 
-    private static async ValueTask RunLambdaTaleTests(
+    private static async ValueTask<RunSummary> RunLambdaTaleTests(
         ScenarioTestAssembly testAssembly,
         ScenarioTestCase[] testCases,
         IMessageSink executionMessageSink,

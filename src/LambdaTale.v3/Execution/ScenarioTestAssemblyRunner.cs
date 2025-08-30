@@ -1,3 +1,4 @@
+using Xunit.Internal;
 using Xunit.Sdk;
 using Xunit.v3;
 
@@ -36,6 +37,26 @@ public class ScenarioTestAssemblyRunner :
             ctxt.MessageBus,
             ctxt.Aggregator.Clone(),
             ctxt.CancellationTokenSource);
+
+    protected override async ValueTask<bool> OnTestAssemblyFinished(ScenarioTestAssemblyRunnerContext ctxt, RunSummary summary)
+    {
+        Guard.ArgumentNotNull(ctxt);
+
+        if (ctxt.Aggregator.HasExceptions)
+        {
+            var exception = ctxt.Aggregator.ToException()!;
+            ctxt.Aggregator.Clear();
+
+            if (!await ctxt.Aggregator.RunAsync(() => this.OnTestAssemblyCleanupFailure(ctxt, exception), true))
+            {
+                ctxt.CancellationTokenSource.Cancel();
+            }
+        }
+
+        // This is overridden to prevent the base class from sending the `TestAssemblyFinished` message.
+        // That message will be sent by `LambdaTaleExecutorFacade` instead.
+        return true;
+    }
 }
 
 public class ScenarioTestAssemblyRunnerContext(
