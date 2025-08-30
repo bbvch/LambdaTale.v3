@@ -7,6 +7,8 @@ namespace LambdaTale.v3.Tests;
 
 public class ScenarioTests
 {
+    private readonly int classData = 10;
+
     [Fact]
     public void ShouldFail() => Assert.True(false);
 
@@ -22,6 +24,34 @@ public class ScenarioTests
             => x = 1);
 
         "When a Tale to increment the value is executed".x(()
+            => x += 1);
+
+        "Then the value has changed".x(()
+            => Assert.Equal(2, x));
+    }
+
+    [Scenario]
+    public void ScenarioUsingClassData()
+    {
+        var x = 0;
+        "Given a Tale setting a initial value of 1".x(()
+            => x = 1);
+
+        "When a Tale to increment the value using data from a class member is invoked".x(()
+            => x += this.classData);
+
+        "Then the value has changed".x(()
+            => Assert.Equal(11, x));
+    }
+
+    // TODO: db: This can currently not be parsed as a testcase due to parameter count mismatch. We'll probably want this form though
+    [Scenario]
+    public void ScenarioWithVariablesDefinedAsParameters(int x)
+    {
+        "Given a Tale setting a initial value of 1".x(()
+            => x = 1);
+
+        "When a Tale to increment the value using data from a class member is invoked".x(()
             => x += 1);
 
         "Then the value has changed".x(()
