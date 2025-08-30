@@ -10,13 +10,14 @@ public class ScenarioTestCaseRunner : TestCaseRunner<ScenarioTestCaseRunnerConte
 
     public async ValueTask<RunSummary> Run(
         ScenarioTestCase testCase,
+        object scenarioClass,
         IMessageBus messageBus,
         ExceptionAggregator aggregator,
         CancellationTokenSource cancellationTokenSource)
     {
         var tests = await aggregator.RunAsync(testCase.CreateSteps, []);
 
-        await using var ctxt = new ScenarioTestCaseRunnerContext(testCase, tests, messageBus, aggregator,
+        await using var ctxt = new ScenarioTestCaseRunnerContext(testCase, scenarioClass, tests, messageBus, aggregator,
             cancellationTokenSource);
         await ctxt.InitializeAsync();
 
@@ -24,12 +25,13 @@ public class ScenarioTestCaseRunner : TestCaseRunner<ScenarioTestCaseRunnerConte
     }
 
     protected override ValueTask<RunSummary> RunTest(ScenarioTestCaseRunnerContext ctxt, ScenarioStep test) =>
-        ScenarioStepRunner.Instance.Run(test, ctxt.MessageBus, null, ctxt.Aggregator.Clone(),
+        ScenarioStepRunner.Instance.Run(test, ctxt.ScenarioClass, ctxt.MessageBus, null, ctxt.Aggregator.Clone(),
             ctxt.CancellationTokenSource);
 }
 
 public class ScenarioTestCaseRunnerContext(
     ScenarioTestCase testCase,
+    object scenarioClass,
     IReadOnlyCollection<ScenarioStep> testSteps,
     IMessageBus messageBus,
     ExceptionAggregator aggregator,
@@ -38,4 +40,6 @@ public class ScenarioTestCaseRunnerContext(
         cancellationTokenSource)
 {
     public override IReadOnlyCollection<ScenarioStep> Tests => testSteps;
+
+    public object ScenarioClass { get; } = scenarioClass;
 }

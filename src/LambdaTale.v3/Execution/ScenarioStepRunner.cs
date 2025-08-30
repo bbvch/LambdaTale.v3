@@ -1,3 +1,4 @@
+using Xunit.Internal;
 using Xunit.Sdk;
 using Xunit.v3;
 
@@ -19,19 +20,26 @@ public class ScenarioStepRunner : TestRunner<ScenarioStepRunnerContext, Scenario
 
     protected override ValueTask<TimeSpan> InvokeTest(ScenarioStepRunnerContext ctxt, object? testClassInstance)
     {
-        var instance = Activator.CreateInstance(ctxt.Test.Lambda.Method.DeclaringType); // TODO do this correctly (probably override execution to handle lambdas)
-        return base.InvokeTest(ctxt, instance);
+        return base.InvokeTest(ctxt, ctxt.ScenarioClass);
+    }
+
+    protected override object? InvokeTestMethod(ScenarioStepRunnerContext ctxt, object? testClassInstance)
+    {
+        Guard.ArgumentNotNull(ctxt).Test.Lambda.Invoke();
+        return null;
     }
 
     public async ValueTask<RunSummary> Run(
         ScenarioStep step,
+        object scenarioClass,
         IMessageBus messageBus,
         string? skipReason,
         ExceptionAggregator aggregator,
         CancellationTokenSource cancellationTokenSource)
     {
         await using var ctxt =
-            new ScenarioStepRunnerContext(step, messageBus, skipReason, aggregator, cancellationTokenSource);
+            new ScenarioStepRunnerContext(step, scenarioClass, messageBus, skipReason, aggregator,
+                cancellationTokenSource);
         await ctxt.InitializeAsync();
 
         return await this.Run(ctxt);
@@ -40,9 +48,13 @@ public class ScenarioStepRunner : TestRunner<ScenarioStepRunnerContext, Scenario
 
 public class ScenarioStepRunnerContext(
     ScenarioStep test,
+    object scenarioClass,
     IMessageBus messageBus,
     string? skipReason,
     ExceptionAggregator aggregator,
     CancellationTokenSource cancellationTokenSource) :
     TestRunnerContext<ScenarioStep>(test, messageBus, skipReason, ExplicitOption.Off, aggregator,
-        cancellationTokenSource, test.Lambda.Method, []);
+        cancellationTokenSource, test.Lambda.Method, [])
+{
+    public object ScenarioClass { get; } = scenarioClass;
+}

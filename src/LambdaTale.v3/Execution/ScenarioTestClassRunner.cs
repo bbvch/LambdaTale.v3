@@ -15,8 +15,14 @@ public class ScenarioTestClassRunner :
         ExceptionAggregator aggregator,
         CancellationTokenSource cancellationTokenSource)
     {
+        // TODO: db:
+        //  - ? Is this the correct place to instantiate the test class?
+        //  - ? Is an `ExecutionContext` needed to be passed down
+        //  - ? Where and how to deal with `[Example]`
+        var actualTestClass = Activator.CreateInstance(testClass.Class);
         await using var ctxt =
-            new ScenarioTestClassRunnerContext(testClass, testCases, messageBus, aggregator, cancellationTokenSource);
+            new ScenarioTestClassRunnerContext(testClass, actualTestClass, testCases, messageBus, aggregator,
+                cancellationTokenSource);
         await ctxt.InitializeAsync();
 
         return await this.Run(ctxt);
@@ -30,13 +36,15 @@ public class ScenarioTestClassRunner :
     {
         ArgumentNullException.ThrowIfNull(testMethod);
 
-        return ScenarioTestMethodRunner.Instance.Run(testMethod, testCases, ctxt.MessageBus, ctxt.Aggregator.Clone(),
+        return ScenarioTestMethodRunner.Instance.Run(testMethod, ctxt.ScenarioClass, testCases, ctxt.MessageBus,
+            ctxt.Aggregator.Clone(),
             ctxt.CancellationTokenSource);
     }
 }
 
 public class ScenarioTestClassRunnerContext(
     ScenarioTestClass testClass,
+    object? testScenarioClassInstance,
     IReadOnlyCollection<ScenarioTestCase> testCases,
     IMessageBus messageBus,
     ExceptionAggregator aggregator,
@@ -44,4 +52,5 @@ public class ScenarioTestClassRunnerContext(
     TestClassRunnerContext<ScenarioTestClass, ScenarioTestCase>(testClass, testCases, ExplicitOption.Off, messageBus,
         aggregator, cancellationTokenSource)
 {
+    public object? ScenarioClass { get; } = testScenarioClassInstance;
 }
