@@ -33,7 +33,8 @@ public sealed class ScenarioStep : ITest, IXunitSerializable
         this.lambda ?? throw new InvalidOperationException(
             $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.Lambda)}");
 
-    public string TestDisplayName => $"{this.ParentTestCase.ScenarioTestMethod.Method.Name}.{this.tale}";
+    // TODO: db: ? How can we get the steps to use this name instead of the testcase (in the test explorer)
+    public string TestDisplayName => $"[{this.testIndex}]: {this.ParentTestCase.ScenarioTestMethod.Method.Name}.{this.tale}";
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
 

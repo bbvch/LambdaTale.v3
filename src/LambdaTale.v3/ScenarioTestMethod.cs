@@ -41,7 +41,7 @@ public sealed class ScenarioTestMethod : ITestMethod, IXunitSerializable
 
     public int? MethodArity => this.Method.GetArity();
 
-    public new string MethodName => this.Method.Name;
+    public string MethodName => this.Method.Name;
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.traits.Value;
 

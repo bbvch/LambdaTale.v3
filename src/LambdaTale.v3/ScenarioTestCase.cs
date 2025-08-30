@@ -69,9 +69,8 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     }
 
 
-    public string
-        TestCaseDisplayName => //this.ScenarioTestMethod.Method.GetDisplayNameWithArguments(this.ScenarioTestMethod.MethodName, [this.seed], null);
-        $"{this.ScenarioTestMethod.MethodName}: {this.tale}";
+    // TODO: db: ? Why does the test explorer show the first testcase name as the method name...
+    public string TestCaseDisplayName => $"[{this.caseIndex}]: {this.ScenarioTestMethod.MethodName}: {this.tale}";
 
     public ValueTask<IReadOnlyCollection<ScenarioStep>> CreateSteps() =>
         new([
