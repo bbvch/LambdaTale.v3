@@ -54,13 +54,13 @@ public class ScenarioTests
     public void ScenarioWithAsyncLambda()
     {
         var x = 0;
-        "Given a async tale setting the value".x(async void () =>
+        "Given a async tale setting the value".x(async () =>
         {
             x = 1;
             await Task.CompletedTask;
         });
 
-        "When a Tale to increment the value using data from a class member is invoked".x(async void () =>
+        "When a Tale to increment the value using data from a class member is invoked".x(async () =>
         {
             await Task.Delay(10);
             x += 1;

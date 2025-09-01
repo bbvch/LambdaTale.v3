@@ -25,8 +25,23 @@ public class ScenarioStepRunner : TestRunner<ScenarioStepRunnerContext, Scenario
 
     protected override object? InvokeTestMethod(ScenarioStepRunnerContext ctxt, object? testClassInstance)
     {
-        Guard.ArgumentNotNull(ctxt).Test.Lambda.Invoke();
-        return null;
+        var body = Guard.ArgumentNotNull(ctxt).Test.Body;
+
+        Task? bodyTask = null;
+
+        switch (body)
+        {
+            case TaleBody.SynchronousTaleBody sync:
+                sync.Body.Invoke();
+                break;
+            case TaleBody.AsynchronousTaleBody a:
+                bodyTask = a.Body.Invoke();
+                break;
+            default:
+                throw new NotSupportedException();
+        }
+
+        return bodyTask;
     }
 
     public async ValueTask<RunSummary> Run(
@@ -54,7 +69,7 @@ public class ScenarioStepRunnerContext(
     ExceptionAggregator aggregator,
     CancellationTokenSource cancellationTokenSource) :
     TestRunnerContext<ScenarioStep>(test, messageBus, skipReason, ExplicitOption.Off, aggregator,
-        cancellationTokenSource, test.Lambda.Method, [])
+        cancellationTokenSource, test.Body.Method, [])
 {
     public object ScenarioClass { get; } = scenarioClass;
 }

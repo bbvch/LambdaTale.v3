@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 namespace LambdaTale.v3;
 
@@ -17,7 +18,14 @@ public sealed class Scenario
     public static void Add(string tale, Action lambda)
     {
         var context = Tests.Value ?? MissingContext();
-        context.Add(new ScenarioTestDefinition(tale, lambda, LambdaIndex.Value));
+        context.Add(new ScenarioTestDefinition(tale, new TaleBody.SynchronousTaleBody(lambda), LambdaIndex.Value));
+        LambdaIndex.Value++;
+    }
+
+    public static void Add(string tale, Func<Task> body)
+    {
+        var context = Tests.Value ?? MissingContext();
+        context.Add(new ScenarioTestDefinition(tale, new TaleBody.AsynchronousTaleBody(body), LambdaIndex.Value));
         LambdaIndex.Value++;
     }
 
@@ -25,7 +33,8 @@ public sealed class Scenario
         Tests.Value ?? MissingContext();
 
     [DoesNotReturn]
-    private static List<ScenarioTestDefinition> MissingContext() => throw new InvalidOperationException("Missing " + nameof(ScenarioContext));
+    private static List<ScenarioTestDefinition> MissingContext() =>
+        throw new InvalidOperationException("Missing " + nameof(ScenarioContext));
 
     private sealed class ScenarioContext : IDisposable
     {
@@ -35,4 +44,11 @@ public sealed class Scenario
     }
 }
 
-public record ScenarioTestDefinition(string Tale, Action Lambda, int index);
+public record ScenarioTestDefinition(string Tale, TaleBody Lambda, int index);
+
+public abstract record TaleBody(MethodInfo Method)
+{
+    public sealed record SynchronousTaleBody(Action Body) : TaleBody(Body.Method);
+
+    public sealed record AsynchronousTaleBody(Func<Task> Body) : TaleBody(Body.Method);
+}

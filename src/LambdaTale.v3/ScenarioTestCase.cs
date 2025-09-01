@@ -12,14 +12,14 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     private ScenarioTestMethod? scenarioTestMethod;
     private string? tale;
     private Lazy<string> uniqueId;
-    private readonly Action lambda;
+    private readonly TaleBody body;
     private readonly int caseIndex;
 
     [EditorBrowsable(EditorBrowsableState.Never)]
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase()
     {
-        this.lambda = () => { };
+        this.body = new TaleBody.SynchronousTaleBody(() => { });
         this.uniqueId = new(() =>
         {
             using var generator = new UniqueIDGenerator();
@@ -35,13 +35,13 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     public ScenarioTestCase(
         ScenarioTestMethod scenarioTestMethod,
         string tale,
-        Action lambda,
+        TaleBody body,
         int caseIndex) : this()
 #pragma warning restore CS0618 // Type or member is obsolete
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
         this.tale = Guard.ArgumentNotNullOrEmpty(tale);
-        this.lambda = lambda;
+        this.body = Guard.ArgumentNotNull(body);
         this.caseIndex = caseIndex;
     }
 
@@ -75,7 +75,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 
     public ValueTask<IReadOnlyCollection<ScenarioStep>> CreateSteps() =>
         new([
-            new ScenarioStep(this, this.tale ?? string.Empty, this.lambda, this.caseIndex)
+            new ScenarioStep(this, this.tale ?? string.Empty, this.body, this.caseIndex)
         ]);
 
     #region StuffIDontCareAboutRightNow

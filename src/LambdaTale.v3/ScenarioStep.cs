@@ -7,7 +7,7 @@ namespace LambdaTale.v3;
 public sealed class ScenarioStep : ITest, IXunitSerializable
 {
     private ScenarioTestCase? parentTestCase;
-    private Action? lambda;
+    private TaleBody? body;
     private readonly int testIndex;
     private string? tale;
 
@@ -17,10 +17,10 @@ public sealed class ScenarioStep : ITest, IXunitSerializable
     {
     }
 
-    public ScenarioStep(ScenarioTestCase parentTestCase, string tale, Action lambda, int testIndex)
+    public ScenarioStep(ScenarioTestCase parentTestCase, string tale, TaleBody body, int testIndex)
     {
         this.parentTestCase = parentTestCase;
-        this.lambda = lambda;
+        this.body = body;
         this.testIndex = testIndex;
         this.tale = tale;
     }
@@ -29,9 +29,9 @@ public sealed class ScenarioStep : ITest, IXunitSerializable
         this.parentTestCase ?? throw new InvalidOperationException(
             $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.ParentTestCase)}");
 
-    public Action Lambda =>
-        this.lambda ?? throw new InvalidOperationException(
-            $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.Lambda)}");
+    public TaleBody Body =>
+        this.body ?? throw new InvalidOperationException(
+            $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.Body)}");
 
     // TODO: db: ? How can we get the steps to use this name instead of the testcase (in the test explorer)
     public string TestDisplayName => $"[{this.testIndex}]: {this.ParentTestCase.ScenarioTestMethod.Method.Name}.{this.tale}";
