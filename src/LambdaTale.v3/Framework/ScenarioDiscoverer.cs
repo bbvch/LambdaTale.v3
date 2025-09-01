@@ -55,11 +55,21 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
         using var ctx = Scenario.Acquire();
         var tc = Activator.CreateInstance(testClass.Class);
 
-        testMethod.Method.Invoke(tc, null);
+        var parameterInfos = testMethod.Method.GetParameters();
+
+        var parameterTypes = new object?[parameterInfos.Length];
+        for (var i = 0; i < parameterInfos.Length; i++)
+        {
+            parameterTypes[i] = parameterInfos[i].ParameterType.GetDefaultValue();
+        }
+
+        // TODO: db: Error handling
+        testMethod.Method.Invoke(tc, parameterTypes);
 
         var steps = Scenario.TestDefinitions.Select(td =>
         {
-            var tci = new ScenarioTestCase(testMethod, td.Tale, td.Lambda, td.index, sourceFilePath: attr.SourceFilePath, sourceLineNumber: attr.SourceLineNumber);
+            var tci = new ScenarioTestCase(testMethod, td.Tale, td.Lambda, td.index,
+                sourceFilePath: attr.SourceFilePath, sourceLineNumber: attr.SourceLineNumber);
             return (td.index, tci);
         });
         steps = steps.OrderBy(x => x.index);

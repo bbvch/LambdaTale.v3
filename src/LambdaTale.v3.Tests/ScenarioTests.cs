@@ -70,18 +70,22 @@ public class ScenarioTests
             => Assert.Equal(2, x));
     }
 
-    // TODO: db: This can currently not be parsed as a testcase due to parameter count mismatch. We'll probably want this form though
     [Scenario]
-    public void ScenarioWithVariablesDefinedAsParameters(int x)
+    public void ScenarioWithVariablesDefinedAsParameters(int x, string testString)
     {
-        "Given a Tale setting a initial value of 1".x(()
-            => x = 1);
+        "Given a Tale setting a initial value of 1".x(() =>
+        {
+            x = 1;
+            testString = "LambdaTale, yay!";
+        });
 
         "When a Tale to increment the value using data from a class member is invoked".x(()
             => x += 1);
 
         "Then the value has changed".x(()
             => Assert.Equal(2, x));
+
+        "And the string contains a value".x(() => Assert.Contains("LambdaTale", testString));
     }
 
     [Scenario]
