@@ -16,6 +16,12 @@ public class ScenarioTests
     public void ShouldPass() => Assert.True(true);
 
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Theory(int value) => Assert.Equal(0, value);
+
     [Scenario]
     public void Scenario()
     {
@@ -42,6 +48,26 @@ public class ScenarioTests
 
         "Then the value has changed".x(()
             => Assert.Equal(11, x));
+    }
+
+    [Scenario]
+    public void ScenarioWithAsyncLambda()
+    {
+        var x = 0;
+        "Given a async tale setting the value".x(async void () =>
+        {
+            x = 1;
+            await Task.CompletedTask;
+        });
+
+        "When a Tale to increment the value using data from a class member is invoked".x(async void () =>
+        {
+            await Task.Delay(10);
+            x += 1;
+        });
+
+        "Then the value has changed".x(()
+            => Assert.Equal(2, x));
     }
 
     // TODO: db: This can currently not be parsed as a testcase due to parameter count mismatch. We'll probably want this form though
@@ -73,10 +99,4 @@ public class ScenarioTests
         "Then the value has changed".x(()
             => Assert.Equal(9, x));
     }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void Theory(int value) => Assert.Equal(0, value);
 }

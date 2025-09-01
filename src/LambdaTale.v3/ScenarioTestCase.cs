@@ -19,6 +19,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase()
     {
+        this.lambda = () => { };
         this.uniqueId = new(() =>
         {
             using var generator = new UniqueIDGenerator();
