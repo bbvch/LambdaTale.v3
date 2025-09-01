@@ -36,12 +36,16 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         ScenarioTestMethod scenarioTestMethod,
         string tale,
         TaleBody body,
-        int caseIndex) : this()
+        int caseIndex,
+        string? sourceFilePath = null,
+        int? sourceLineNumber = null) : this()
 #pragma warning restore CS0618 // Type or member is obsolete
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
         this.tale = Guard.ArgumentNotNullOrEmpty(tale);
         this.body = Guard.ArgumentNotNull(body);
+        this.SourceFilePath = sourceFilePath;
+        this.SourceLineNumber = sourceLineNumber;
         this.caseIndex = caseIndex;
     }
 
@@ -60,13 +64,24 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     {
         this.scenarioTestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization",
             info.GetValue<ScenarioTestMethod>("tm"));
-        this.tale = Guard.NotNull("", info.GetValue<string>("seed"));
+        this.tale = Guard.NotNull("", info.GetValue<string>("tale"));
+        this.SourceFilePath = info.GetValue<string>("sf");
+        this.SourceLineNumber = info.GetValue<int?>("sl");
     }
 
     public void Serialize(IXunitSerializationInfo info)
     {
         info.AddValue("tm", this.ScenarioTestMethod);
-        info.AddValue("seed", this.tale);
+        info.AddValue("tale", this.tale);
+        if (this.SourceFilePath is not null)
+        {
+            info.AddValue("sf", this.SourceFilePath);
+        }
+
+        if (this.SourceLineNumber is not null)
+        {
+            info.AddValue("sl", this.SourceLineNumber);
+        }
     }
 
 
@@ -84,9 +99,9 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 
     string? ITestCaseMetadata.SkipReason => null;
 
-    string? ITestCaseMetadata.SourceFilePath => null;
+    public string? SourceFilePath { get; private set; }
 
-    int? ITestCaseMetadata.SourceLineNumber => null;
+    public int? SourceLineNumber { get; private set; }
 
     ITestClass ITestCase.TestClass => this.ScenarioTestClass;
 

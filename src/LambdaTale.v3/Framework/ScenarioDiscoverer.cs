@@ -30,7 +30,7 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
 
             try
             {
-                if (!await FindTestsForMethod(testClass, testMethod, discoveryOptions, discoveryCallback))
+                if (!await FindTestsForMethod(testClass, testMethod, attr, discoveryOptions, discoveryCallback))
                 {
                     return false;
                 }
@@ -48,6 +48,7 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
     public static async ValueTask<bool> FindTestsForMethod(
         ScenarioTestClass testClass,
         ScenarioTestMethod testMethod,
+        ScenarioAttribute attr,
         ITestFrameworkDiscoveryOptions discoveryOptions,
         Func<ScenarioTestCase, ValueTask<bool>> discoveryCallback)
     {
@@ -58,7 +59,7 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
 
         var steps = Scenario.TestDefinitions.Select(td =>
         {
-            var tci = new ScenarioTestCase(testMethod, td.Tale, td.Lambda, td.index);
+            var tci = new ScenarioTestCase(testMethod, td.Tale, td.Lambda, td.index, sourceFilePath: attr.SourceFilePath, sourceLineNumber: attr.SourceLineNumber);
             return (td.index, tci);
         });
         steps = steps.OrderBy(x => x.index);
