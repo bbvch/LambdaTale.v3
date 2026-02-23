@@ -14,19 +14,11 @@ public sealed class ScenarioTestMethod : ITestMethod, IXunitSerializable
     private readonly Lazy<IReadOnlyDictionary<string, IReadOnlyCollection<string>>> traits;
     private string? uniqueID;
 
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
-    public ScenarioTestMethod()
-    {
-        this.traits = new(() => ExtensibilityPointFactory.GetMethodTraits(this.Method, this.ScenarioTestClass.Traits));
-    }
-
-#pragma warning disable CS0618 // Type or member is obsolete
-    public ScenarioTestMethod(ScenarioTestClass scenarioTestClass, MethodInfo method) : this()
-#pragma warning restore CS0618 // Type or member is obsolete
+    public ScenarioTestMethod(ScenarioTestClass scenarioTestClass, MethodInfo method)
     {
         this.scenarioTestClass = scenarioTestClass;
         this.method = method;
+        this.traits = new(() => ExtensibilityPointFactory.GetMethodTraits(this.Method, this.ScenarioTestClass.Traits));
         this.uniqueID = UniqueIDGenerator.ForTestMethod(scenarioTestClass.UniqueID, this.method.Name);
     }
 

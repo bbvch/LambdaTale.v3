@@ -15,31 +15,13 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     private readonly TaleBody body;
     private readonly int caseIndex;
 
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
-    public ScenarioTestCase()
-    {
-        this.body = new TaleBody.SynchronousTaleBody(() => { });
-        this.uniqueId = new(() =>
-        {
-            using var generator = new UniqueIDGenerator();
-            var baseId = UniqueIDGenerator.ForTestCase(this.scenarioTestMethod!.UniqueID, null, null);
-            generator.Add(baseId);
-            generator.Add(new Random().Next().ToString()); // WTF??
-            generator.Add(this.tale!);
-            return generator.Compute();
-        });
-    }
-
-#pragma warning disable CS0618 // Type or member is obsolete
     public ScenarioTestCase(
         ScenarioTestMethod scenarioTestMethod,
         string tale,
         TaleBody body,
         int caseIndex,
         string? sourceFilePath = null,
-        int? sourceLineNumber = null) : this()
-#pragma warning restore CS0618 // Type or member is obsolete
+        int? sourceLineNumber = null)
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
         this.tale = Guard.ArgumentNotNullOrEmpty(tale);
@@ -47,6 +29,15 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         this.SourceFilePath = sourceFilePath;
         this.SourceLineNumber = sourceLineNumber;
         this.caseIndex = caseIndex;
+        this.uniqueId = new(() =>
+        {
+            using var generator = new UniqueIDGenerator();
+            var baseId = UniqueIDGenerator.ForTestCase(this.scenarioTestMethod!.UniqueID, null, null);
+            generator.Add(baseId);
+            generator.Add(new Random().Next().ToString());
+            generator.Add(this.tale!);
+            return generator.Compute();
+        });
     }
 
     public ScenarioTestClass ScenarioTestClass => this.ScenarioTestMethod.ScenarioTestClass;
