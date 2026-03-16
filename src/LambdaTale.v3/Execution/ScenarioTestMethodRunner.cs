@@ -18,13 +18,22 @@ public class
         CancellationTokenSource cancellationTokenSource)
     {
         Guard.ArgumentNotNull(classInstance);
-        // TODO: db:
-        //  - ? Should the method be `run` here before executing the lambda bodies to `setup` the scenario?
-        //  - ? What happens about possible `[Background]` and `[Teardown]` steps
-        //  - ? Is additional context needed on the testcase itself
-        await using var ctxt = new ScenarioTestMethodRunnerContext(testMethod, classInstance, testCases, messageBus,
-            aggregator,
-            cancellationTokenSource);
+
+        // Invoke the scenario method once to collect live step definitions.
+        // Done here (not in discovery) so lambdas are fresh per execution
+        // and re-runs after deserialization work correctly.
+        var parameterInfos = testMethod.Method.GetParameters();
+        var parameterValues = new object?[parameterInfos.Length];
+        for (var i = 0; i < parameterInfos.Length; i++)
+            parameterValues[i] = parameterInfos[i].ParameterType.GetDefaultValue();
+
+        using var scenarioCtx = Scenario.Acquire();
+        testMethod.Method.Invoke(classInstance, parameterValues);
+        var stepDefinitions = Scenario.TestDefinitions.ToDictionary(td => td.index);
+
+        await using var ctxt = new ScenarioTestMethodRunnerContext(
+            testMethod, classInstance, testCases, stepDefinitions,
+            messageBus, aggregator, cancellationTokenSource);
         await ctxt.InitializeAsync();
 
         return await this.Run(ctxt);
@@ -49,15 +58,26 @@ public class
 
     protected override ValueTask<RunSummary> RunTestCase(
         ScenarioTestMethodRunnerContext ctxt,
-        ScenarioTestCase testCase) =>
-        ScenarioTestCaseRunner.Instance.Run(testCase, ctxt.ScenarioClass, ctxt.MessageBus, ctxt.Aggregator.Clone(),
-            ctxt.CancellationTokenSource);
+        ScenarioTestCase testCase)
+    {
+        if (!ctxt.StepDefinitions.TryGetValue(testCase.CaseIndex, out var stepDef))
+            throw new InvalidOperationException(
+                $"No step definition found for index {testCase.CaseIndex} in scenario '{ctxt.TestMethod.MethodName}'. " +
+                $"This can happen if the scenario method body has changed since discovery.");
+
+        var step = new ScenarioStep(testCase, stepDef.Tale, stepDef.Lambda);
+
+        return ScenarioTestCaseRunner.Instance.Run(
+            testCase, step, ctxt.ScenarioClass, ctxt.MessageBus,
+            ctxt.Aggregator.Clone(), ctxt.CancellationTokenSource);
+    }
 }
 
 public class ScenarioTestMethodRunnerContext(
     ScenarioTestMethod testMethod,
     object testClassInstance,
     IReadOnlyCollection<ScenarioTestCase> testCases,
+    IReadOnlyDictionary<int, ScenarioTestDefinition> stepDefinitions,
     IMessageBus messageBus,
     ExceptionAggregator aggregator,
     CancellationTokenSource cancellationTokenSource) :
@@ -65,4 +85,5 @@ public class ScenarioTestMethodRunnerContext(
         aggregator, cancellationTokenSource)
 {
     public object ScenarioClass { get; } = testClassInstance;
+    public IReadOnlyDictionary<int, ScenarioTestDefinition> StepDefinitions { get; } = stepDefinitions;
 }

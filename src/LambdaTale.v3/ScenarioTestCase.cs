@@ -12,30 +12,39 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     private ScenarioTestMethod? scenarioTestMethod;
     private string? tale;
     private Lazy<string> uniqueId;
-    private readonly TaleBody body;
-    private readonly int caseIndex;
+    private int caseIndex;
+
+    [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
+    public ScenarioTestCase()
+    {
+        this.uniqueId = new(() =>
+        {
+            using var generator = new UniqueIDGenerator();
+            generator.Add(this.scenarioTestMethod!.UniqueID);
+            generator.Add(this.tale!);
+            generator.Add(this.caseIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return generator.Compute();
+        });
+    }
 
     public ScenarioTestCase(
         ScenarioTestMethod scenarioTestMethod,
         string tale,
-        TaleBody body,
         int caseIndex,
         string? sourceFilePath = null,
         int? sourceLineNumber = null)
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
         this.tale = Guard.ArgumentNotNullOrEmpty(tale);
-        this.body = Guard.ArgumentNotNull(body);
+        this.caseIndex = caseIndex;
         this.SourceFilePath = sourceFilePath;
         this.SourceLineNumber = sourceLineNumber;
-        this.caseIndex = caseIndex;
         this.uniqueId = new(() =>
         {
             using var generator = new UniqueIDGenerator();
-            var baseId = UniqueIDGenerator.ForTestCase(this.scenarioTestMethod!.UniqueID, null, null);
-            generator.Add(baseId);
-            generator.Add(new Random().Next().ToString());
+            generator.Add(this.scenarioTestMethod!.UniqueID);
             generator.Add(this.tale!);
+            generator.Add(this.caseIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
             return generator.Compute();
         });
     }
@@ -51,11 +60,14 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 
     public string UniqueID => this.uniqueId.Value;
 
+    public int CaseIndex => this.caseIndex;
+
     public void Deserialize(IXunitSerializationInfo info)
     {
         this.scenarioTestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization",
             info.GetValue<ScenarioTestMethod>("tm"));
         this.tale = Guard.NotNull("", info.GetValue<string>("tale"));
+        this.caseIndex = info.GetValue<int>("ci");
         this.SourceFilePath = info.GetValue<string>("sf");
         this.SourceLineNumber = info.GetValue<int?>("sl");
     }
@@ -64,6 +76,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     {
         info.AddValue("tm", this.ScenarioTestMethod);
         info.AddValue("tale", this.tale);
+        info.AddValue("ci", this.caseIndex);
         if (this.SourceFilePath is not null)
         {
             info.AddValue("sf", this.SourceFilePath);
@@ -75,14 +88,8 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         }
     }
 
-
-    // TODO: db: ? Why does the test explorer show the first testcase name as the method name...
-    public string TestCaseDisplayName => $"[{this.caseIndex}]: {this.ScenarioTestMethod.MethodName}: {this.tale}";
-
-    public ValueTask<IReadOnlyCollection<ScenarioStep>> CreateSteps() =>
-        new([
-            new ScenarioStep(this, this.tale ?? string.Empty, this.body, this.caseIndex)
-        ]);
+    public string TestCaseDisplayName =>
+        this.ScenarioTestMethod.MethodName;
 
     #region StuffIDontCareAboutRightNow
 
@@ -98,7 +105,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 
     int? ITestCaseMetadata.TestClassMetadataToken => this.ScenarioTestClass.Class.MetadataToken;
 
-    string ITestCaseMetadata.TestClassName => this.ScenarioTestClass.Class.Name;
+    string ITestCaseMetadata.TestClassName => this.ScenarioTestClass.TestClassName;
 
     string? ITestCaseMetadata.TestClassNamespace => this.ScenarioTestClass.Class.Namespace;
 

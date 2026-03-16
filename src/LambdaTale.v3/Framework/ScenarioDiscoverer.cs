@@ -68,7 +68,7 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
 
         var steps = Scenario.TestDefinitions.Select(td =>
         {
-            var tci = new ScenarioTestCase(testMethod, td.Tale, td.Lambda, td.index,
+            var tci = new ScenarioTestCase(testMethod, td.Tale, td.index,
                 sourceFilePath: attr.SourceFilePath, sourceLineNumber: attr.SourceLineNumber);
             return (td.index, tci);
         });

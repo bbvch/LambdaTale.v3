@@ -10,14 +10,13 @@ public class ScenarioTestCaseRunner : TestCaseRunner<ScenarioTestCaseRunnerConte
 
     public async ValueTask<RunSummary> Run(
         ScenarioTestCase testCase,
+        ScenarioStep step,
         object scenarioClass,
         IMessageBus messageBus,
         ExceptionAggregator aggregator,
         CancellationTokenSource cancellationTokenSource)
     {
-        var tests = await aggregator.RunAsync(testCase.CreateSteps, []);
-
-        await using var ctxt = new ScenarioTestCaseRunnerContext(testCase, scenarioClass, tests, messageBus, aggregator,
+        await using var ctxt = new ScenarioTestCaseRunnerContext(testCase, scenarioClass, [step], messageBus, aggregator,
             cancellationTokenSource);
         await ctxt.InitializeAsync();
 
