@@ -22,17 +22,23 @@ public class
         // Invoke the scenario method once to collect live step definitions.
         // Done here (not in discovery) so lambdas are fresh per execution
         // and re-runs after deserialization work correctly.
-        var parameterInfos = testMethod.Method.GetParameters();
-        var parameterValues = new object?[parameterInfos.Length];
-        for (var i = 0; i < parameterInfos.Length; i++)
-            parameterValues[i] = parameterInfos[i].ParameterType.GetDefaultValue();
+        var stepDefinitionsByRow = new Dictionary<int, Dictionary<int, ScenarioTestDefinition>>();
+        foreach (var group in testCases.GroupBy(tc => tc.DataRowIndex))
+        {
+            var args = group.First().TestMethodArguments;
+            var parameterInfos = testMethod.Method.GetParameters();
+            var parameterValues = args ?? new object?[parameterInfos.Length];
+            if (args is null)
+                for (var i = 0; i < parameterInfos.Length; i++)
+                    parameterValues[i] = parameterInfos[i].ParameterType.GetDefaultValue();
 
-        using var scenarioCtx = Scenario.Acquire();
-        testMethod.Method.Invoke(classInstance, parameterValues);
-        var stepDefinitions = Scenario.TestDefinitions.ToDictionary(td => td.index);
+            using var scenarioCtx = Scenario.Acquire();
+            testMethod.Method.Invoke(classInstance, parameterValues);
+            stepDefinitionsByRow[group.Key] = Scenario.TestDefinitions.ToDictionary(td => td.index);
+        }
 
         await using var ctxt = new ScenarioTestMethodRunnerContext(
-            testMethod, classInstance, testCases, stepDefinitions,
+            testMethod, classInstance, testCases, stepDefinitionsByRow,
             messageBus, aggregator, cancellationTokenSource);
         await ctxt.InitializeAsync();
 
@@ -60,9 +66,11 @@ public class
         ScenarioTestMethodRunnerContext ctxt,
         ScenarioTestCase testCase)
     {
-        if (!ctxt.StepDefinitions.TryGetValue(testCase.CaseIndex, out var stepDef))
+        if (!ctxt.StepDefinitionsByRow.TryGetValue(testCase.DataRowIndex, out var rowDefs) ||
+            !rowDefs.TryGetValue(testCase.CaseIndex, out var stepDef))
             throw new InvalidOperationException(
-                $"No step definition found for index {testCase.CaseIndex} in scenario '{ctxt.TestMethod.MethodName}'. " +
+                $"No step definition found for row {testCase.DataRowIndex}, index {testCase.CaseIndex} " +
+                $"in scenario '{ctxt.TestMethod.MethodName}'. " +
                 $"This can happen if the scenario method body has changed since discovery.");
 
         var step = new ScenarioStep(testCase, stepDef.Tale, stepDef.Lambda);
@@ -77,7 +85,7 @@ public class ScenarioTestMethodRunnerContext(
     ScenarioTestMethod testMethod,
     object testClassInstance,
     IReadOnlyCollection<ScenarioTestCase> testCases,
-    IReadOnlyDictionary<int, ScenarioTestDefinition> stepDefinitions,
+    IReadOnlyDictionary<int, Dictionary<int, ScenarioTestDefinition>> stepDefinitionsByRow,
     IMessageBus messageBus,
     ExceptionAggregator aggregator,
     CancellationTokenSource cancellationTokenSource) :
@@ -85,5 +93,5 @@ public class ScenarioTestMethodRunnerContext(
         aggregator, cancellationTokenSource)
 {
     public object ScenarioClass { get; } = testClassInstance;
-    public IReadOnlyDictionary<int, ScenarioTestDefinition> StepDefinitions { get; } = stepDefinitions;
+    public IReadOnlyDictionary<int, Dictionary<int, ScenarioTestDefinition>> StepDefinitionsByRow { get; } = stepDefinitionsByRow;
 }

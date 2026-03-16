@@ -31,7 +31,10 @@ public sealed class ScenarioStep : ITest, IXunitSerializable
         this.body ?? throw new InvalidOperationException(
             $"Attempted to retrieve an uninitialized {nameof(ScenarioStep)}.{nameof(this.Body)}");
 
-    public string TestDisplayName => $"[{this.ParentTestCase.CaseIndex}] {this.tale}";
+    public string TestDisplayName =>
+        this.ParentTestCase.DataRowIndex >= 0
+            ? $"{this.ParentTestCase.TestCaseDisplayName} [{this.ParentTestCase.CaseIndex}] {this.tale}"
+            : $"[{this.ParentTestCase.CaseIndex}] {this.tale}";
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
 

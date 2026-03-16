@@ -52,29 +52,77 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
         ITestFrameworkDiscoveryOptions discoveryOptions,
         Func<ScenarioTestCase, ValueTask<bool>> discoveryCallback)
     {
-        using var ctx = Scenario.Acquire();
-        var tc = Activator.CreateInstance(testClass.Class);
+        var dataAttributes = testMethod.Method
+            .GetCustomAttributes(false)
+            .OfType<IDataAttribute>()
+            .ToList();
 
-        var parameterInfos = testMethod.Method.GetParameters();
-
-        var parameterTypes = new object?[parameterInfos.Length];
-        for (var i = 0; i < parameterInfos.Length; i++)
+        if (dataAttributes.Count == 0)
         {
-            parameterTypes[i] = parameterInfos[i].ParameterType.GetDefaultValue();
+            if (attr.SkipTestWithoutData)
+                return true;
+
+            return await InvokeAndEmit(
+                testClass, testMethod, attr,
+                args: null, dataRowIndex: -1, methodDisplayName: null,
+                discoveryCallback);
         }
 
-        // TODO: db: Error handling
-        testMethod.Method.Invoke(tc, parameterTypes);
-
-        var steps = Scenario.TestDefinitions.Select(td =>
+        await using var disposalTracker = new DisposalTracker();
+        var rowIndex = 0;
+        foreach (var dataAttr in dataAttributes)
         {
-            var tci = new ScenarioTestCase(testMethod, td.Tale, td.index,
-                sourceFilePath: attr.SourceFilePath, sourceLineNumber: attr.SourceLineNumber);
-            return (td.index, tci);
-        });
-        steps = steps.OrderBy(x => x.index);
+            var rows = await dataAttr.GetData(testMethod.Method, disposalTracker);
+            foreach (var row in rows)
+            {
+                var args = row.GetData();
+                var methodDisplayName = row.TestDisplayName
+                                        ?? testMethod.Method.GetDisplayNameWithArguments(testMethod.MethodName, args, null);
 
-        foreach (var (_, test) in steps)
+                if (!await InvokeAndEmit(
+                        testClass, testMethod, attr,
+                        args, rowIndex, methodDisplayName,
+                        discoveryCallback))
+                {
+                    return false;
+                }
+
+                rowIndex++;
+            }
+        }
+
+        return true;
+    }
+
+    protected override Type[] GetExportedTypes() => this.ScenarioTestAssembly.Assembly.ExportedTypes.ToArray();
+
+
+    private static async ValueTask<bool> InvokeAndEmit(
+        ScenarioTestClass testClass,
+        ScenarioTestMethod testMethod,
+        ScenarioAttribute attr,
+        object?[]? args,
+        int dataRowIndex,
+        string? methodDisplayName,
+        Func<ScenarioTestCase, ValueTask<bool>> discoveryCallback)
+    {
+        using var ctx = Scenario.Acquire();
+        var tc = Activator.CreateInstance(testClass.Class);
+        var parameterValues = args ?? DefaultParameterValues(testMethod.Method);
+
+        testMethod.Method.Invoke(tc, parameterValues);
+
+        var steps = Scenario.TestDefinitions
+            .OrderBy(td => td.index)
+            .Select(td => new ScenarioTestCase(
+                testMethod, td.Tale, td.index,
+                testMethodArguments: args,
+                dataRowIndex: dataRowIndex,
+                testCaseDisplayName: methodDisplayName,
+                sourceFilePath: attr.SourceFilePath,
+                sourceLineNumber: attr.SourceLineNumber));
+
+        foreach (var test in steps)
         {
             if (!await discoveryCallback(test))
             {
@@ -85,5 +133,15 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
         return true;
     }
 
-    protected override Type[] GetExportedTypes() => this.ScenarioTestAssembly.Assembly.ExportedTypes.ToArray();
+    private static object?[] DefaultParameterValues(MethodInfo method)
+    {
+        var parameters = method.GetParameters();
+        var values = new object?[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            values[i] = parameters[i].ParameterType.GetDefaultValue();
+        }
+
+        return values;
+    }
 }

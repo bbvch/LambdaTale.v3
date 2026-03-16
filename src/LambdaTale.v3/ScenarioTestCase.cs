@@ -13,6 +13,9 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     private string? tale;
     private Lazy<string> uniqueId;
     private int caseIndex;
+    private object?[]? testMethodArguments;
+    private int dataRowIndex = -1;
+    private string? testCaseDisplayName;
 
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase()
@@ -23,6 +26,14 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
             generator.Add(this.scenarioTestMethod!.UniqueID);
             generator.Add(this.tale!);
             generator.Add(this.caseIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (this.testMethodArguments is not null)
+            {
+                foreach (var arg in this.testMethodArguments)
+                {
+                    generator.Add(SerializationHelper.Instance.Serialize(arg));
+                }
+            }
+
             return generator.Compute();
         });
     }
@@ -31,12 +42,18 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         ScenarioTestMethod scenarioTestMethod,
         string tale,
         int caseIndex,
+        object?[]? testMethodArguments = null,
+        int dataRowIndex = -1,
+        string? testCaseDisplayName = null,
         string? sourceFilePath = null,
         int? sourceLineNumber = null)
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
         this.tale = Guard.ArgumentNotNullOrEmpty(tale);
         this.caseIndex = caseIndex;
+        this.testMethodArguments = testMethodArguments;
+        this.dataRowIndex = dataRowIndex;
+        this.testCaseDisplayName = testCaseDisplayName;
         this.SourceFilePath = sourceFilePath;
         this.SourceLineNumber = sourceLineNumber;
         this.uniqueId = new(() =>
@@ -45,6 +62,14 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
             generator.Add(this.scenarioTestMethod!.UniqueID);
             generator.Add(this.tale!);
             generator.Add(this.caseIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (this.testMethodArguments is not null)
+            {
+                foreach (var arg in this.testMethodArguments)
+                {
+                    generator.Add(SerializationHelper.Instance.Serialize(arg));
+                }
+            }
+
             return generator.Compute();
         });
     }
@@ -62,6 +87,13 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 
     public int CaseIndex => this.caseIndex;
 
+    public object?[]? TestMethodArguments => this.testMethodArguments;
+
+    public int DataRowIndex => this.dataRowIndex;
+
+    public string TestCaseDisplayName =>
+        this.testCaseDisplayName ?? this.scenarioTestMethod!.MethodName;
+
     public void Deserialize(IXunitSerializationInfo info)
     {
         this.scenarioTestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization",
@@ -70,6 +102,18 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         this.caseIndex = info.GetValue<int>("ci");
         this.SourceFilePath = info.GetValue<string>("sf");
         this.SourceLineNumber = info.GetValue<int?>("sl");
+        this.dataRowIndex = info.GetValue<int>("dri");
+        var argc = info.GetValue<int>("argc");
+        if (argc >= 0)
+        {
+            this.testMethodArguments = new object?[argc];
+            for (var i = 0; i < argc; i++)
+            {
+                var serialized = info.GetValue<string>($"arg{i}");
+                this.testMethodArguments[i] = SerializationHelper.Instance.Deserialize(serialized!);
+            }
+        }
+        this.testCaseDisplayName = info.GetValue<string?>("dn");
     }
 
     public void Serialize(IXunitSerializationInfo info)
@@ -86,10 +130,22 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         {
             info.AddValue("sl", this.SourceLineNumber);
         }
-    }
+        info.AddValue("dri", this.dataRowIndex);
+        var argc = this.testMethodArguments?.Length ?? -1;
+        info.AddValue("argc", argc);
+        if (this.testMethodArguments is not null)
+        {
+            for (var i = 0; i < this.testMethodArguments.Length; i++)
+            {
+                info.AddValue($"arg{i}", SerializationHelper.Instance.Serialize(this.testMethodArguments[i]));
+            }
+        }
 
-    public string TestCaseDisplayName =>
-        this.ScenarioTestMethod.MethodName;
+        if (this.testCaseDisplayName is not null)
+        {
+            info.AddValue("dn", this.testCaseDisplayName);
+        }
+    }
 
     #region StuffIDontCareAboutRightNow
 

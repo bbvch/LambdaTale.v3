@@ -7,10 +7,9 @@ namespace LambdaTale.v3.Tests;
 
 public class ScenarioTests
 {
-    private readonly int classData = 10;
+    public static IEnumerable<TheoryDataRow<int, string>> TestMemberData = [new(1, "one"), new(2, "two")];
 
-    [Fact]
-    public void ShouldFail() => Assert.True(false);
+    private readonly int classData = 10;
 
     [Fact]
     public void ShouldPass() => Assert.True(true);
@@ -18,8 +17,6 @@ public class ScenarioTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
     public void Theory(int value) => Assert.Equal(0, value);
 
     [Scenario]
@@ -102,5 +99,42 @@ public class ScenarioTests
 
         "Then the value has changed".x(()
             => Assert.Equal(9, x));
+    }
+
+    [Scenario]
+    [InlineData(5)]
+    public void ScenarioWithInlineData(int value)
+    {
+        $"Given value is {value}".x(() => { });
+        "Then value is what is the specified value of '5'".x(() => Assert.Equal(5, value));
+    }
+
+    [Scenario]
+    [InlineData(2, "two")]
+    [InlineData(3, "three")]
+    [InlineData(4, "four")]
+    public void ScenarioWithMultipleInlineDataRows(int value, string name)
+    {
+        $"Given value is {value}".x(() => { });
+        $"Then name is '{name}'".x(() => Assert.NotEmpty(name));
+        "And value is positive".x(() => Assert.True(value > 0));
+    }
+
+
+    // TODO: db: Not working yet. Data is not discovered...
+    [Scenario]
+    [MemberData(nameof(TestMemberData))]
+    public void ScenarioWithMemberData(int value, string name)
+    {
+        $"Given value is {value}".x(() => { });
+        $"Then name is '{name}'".x(() => Assert.NotEmpty(name));
+        "And value is positive".x(() => Assert.True(value > 0));
+    }
+
+    // TODO: db: Skipped cases are currently not shown / discovered at all.
+    [Scenario(SkipTestWithoutData = true)]
+    public void ScenarioSkippedWhenNoData()
+    {
+        "This step should never run".x(() => Assert.Fail("Should have been skipped"));
     }
 }

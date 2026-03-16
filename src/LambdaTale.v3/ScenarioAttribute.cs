@@ -8,9 +8,9 @@ public class ScenarioAttribute(
     [CallerFilePath] string? sourceFilePath = null,
     [CallerLineNumber] int sourceLineNumber = -1) : Attribute
 {
-    public bool DisableDiscoveryEnumeration { get; }
+    public bool DisableDiscoveryEnumeration => false;
 
-    public bool SkipTestWithoutData { get; }
+    public bool SkipTestWithoutData { get; init; }
 
     public string? SourceFilePath { get; } = sourceFilePath;
 
