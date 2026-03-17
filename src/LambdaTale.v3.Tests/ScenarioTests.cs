@@ -1,3 +1,4 @@
+using System.Collections;
 using LambdaTale.v3.Framework;
 using Xunit;
 
@@ -7,7 +8,7 @@ namespace LambdaTale.v3.Tests;
 
 public class ScenarioTests
 {
-    public static IEnumerable<TheoryDataRow<int, string>> TestMemberData = [new(1, "one"), new(2, "two")];
+    public static IEnumerable<TheoryDataRow<int, string>> TestMemberData = [new(1, "one"), new(2, "two"), new(3, "three")];
 
     private readonly int classData = 10;
 
@@ -121,10 +122,19 @@ public class ScenarioTests
     }
 
 
-    // TODO: db: Not working yet. Data is not discovered...
     [Scenario]
     [MemberData(nameof(TestMemberData))]
     public void ScenarioWithMemberData(int value, string name)
+    {
+        $"Given value is {value}".x(() => { });
+        $"Then name is '{name}'".x(() => Assert.NotEmpty(name));
+        "And value is positive".x(() => Assert.True(value > 0));
+    }
+
+
+    [Scenario]
+    [ClassData(typeof(TestClassData))]
+    public void ScenarioWithClassData(int value, string name)
     {
         $"Given value is {value}".x(() => { });
         $"Then name is '{name}'".x(() => Assert.NotEmpty(name));
@@ -136,5 +146,17 @@ public class ScenarioTests
     public void ScenarioSkippedWhenNoData()
     {
         "This step should never run".x(() => Assert.Fail("Should have been skipped"));
+    }
+
+    private class TestClassData : IEnumerable<TheoryDataRow>
+    {
+        public IEnumerator<TheoryDataRow> GetEnumerator()
+        {
+            yield return new(1, "one");
+            yield return new(2, "two");
+            yield return new(3, "three");
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();
     }
 }

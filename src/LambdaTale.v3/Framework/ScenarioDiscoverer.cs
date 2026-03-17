@@ -52,10 +52,7 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
         ITestFrameworkDiscoveryOptions discoveryOptions,
         Func<ScenarioTestCase, ValueTask<bool>> discoveryCallback)
     {
-        var dataAttributes = testMethod.Method
-            .GetCustomAttributes(false)
-            .OfType<IDataAttribute>()
-            .ToList();
+        var dataAttributes = ExtensibilityPointFactory.GetMethodDataAttributes(testMethod.Method).ToList();
 
         if (dataAttributes.Count == 0)
         {
