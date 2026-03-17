@@ -1,7 +1,7 @@
 using Xunit.Sdk;
 using Xunit.v3;
 
-namespace LambdaTale.v3.Framework;
+namespace LambdaTale.v3;
 
 public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
 {
@@ -18,7 +18,10 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
         if (dataAttributes.Count == 0)
         {
             if (!attr.SkipTestWithoutData)
+            {
                 result.Add(MakeTestCase(testMethod, null, null, attr.Skip, attr));
+            }
+
             return result;
         }
 
@@ -47,14 +50,16 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             {
                 var args = row.GetData();
                 var displayName = row.TestDisplayName
-                    ?? testMethod.GetDisplayName(testMethod.MethodName, row.Label, args, null);
+                                  ?? testMethod.GetDisplayName(testMethod.MethodName, row.Label, args, null);
                 var rowSkip = row.Skip ?? attr.Skip;
                 result.Add(MakeTestCase(testMethod, args, displayName, rowSkip, attr));
             }
         }
 
         if (result.Count == 0 && attr.SkipTestWithoutData)
+        {
             result.Add(MakeTestCase(testMethod, null, null, "No data found for scenario", attr));
+        }
 
         return result;
     }

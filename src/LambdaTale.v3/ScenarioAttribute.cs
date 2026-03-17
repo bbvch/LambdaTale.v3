@@ -4,7 +4,7 @@ using Xunit.v3;
 namespace LambdaTale.v3;
 
 [AttributeUsage(AttributeTargets.Method)]
-[XunitTestCaseDiscoverer(typeof(Framework.ScenarioDiscoverer))]
+[XunitTestCaseDiscoverer(typeof(ScenarioDiscoverer))]
 [IgnoreXunitAnalyzersRule1013]
 public class ScenarioAttribute(
     [CallerFilePath] string? sourceFilePath = null,
