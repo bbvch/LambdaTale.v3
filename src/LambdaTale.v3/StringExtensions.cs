@@ -1,4 +1,4 @@
-﻿namespace LambdaTale.v3;
+namespace LambdaTale.v3;
 
 public static class StringExtensions
 {

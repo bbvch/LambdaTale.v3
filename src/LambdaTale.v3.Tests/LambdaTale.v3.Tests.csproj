@@ -8,7 +8,6 @@
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <NoWarn>xUnit1008</NoWarn>
-        <OutputType>exe</OutputType>
     </PropertyGroup>
 
     <ItemGroup>
