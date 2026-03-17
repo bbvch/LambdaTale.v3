@@ -24,8 +24,8 @@ public class ScenarioTestCaseRunner : TestCaseRunner<ScenarioTestCaseRunnerConte
     }
 
     protected override ValueTask<RunSummary> RunTest(ScenarioTestCaseRunnerContext ctxt, ScenarioStep test) =>
-        ScenarioStepRunner.Instance.Run(test, ctxt.ScenarioClass, ctxt.MessageBus, null, ctxt.Aggregator.Clone(),
-            ctxt.CancellationTokenSource);
+        ScenarioStepRunner.Instance.Run(test, ctxt.ScenarioClass, ctxt.MessageBus, ctxt.TestCase.SkipReason,
+            ctxt.Aggregator.Clone(), ctxt.CancellationTokenSource);
 }
 
 public class ScenarioTestCaseRunnerContext(

@@ -16,6 +16,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
     private object?[]? testMethodArguments;
     private int dataRowIndex = -1;
     private string? testCaseDisplayName;
+    private string? skipReason;
 
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase()
@@ -46,7 +47,8 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         int dataRowIndex = -1,
         string? testCaseDisplayName = null,
         string? sourceFilePath = null,
-        int? sourceLineNumber = null)
+        int? sourceLineNumber = null,
+        string? skipReason = null)
     {
         this.scenarioTestMethod = Guard.ArgumentNotNull(scenarioTestMethod);
         this.tale = Guard.ArgumentNotNullOrEmpty(tale);
@@ -56,6 +58,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         this.testCaseDisplayName = testCaseDisplayName;
         this.SourceFilePath = sourceFilePath;
         this.SourceLineNumber = sourceLineNumber;
+        this.skipReason = skipReason;
         this.uniqueId = new(() =>
         {
             using var generator = new UniqueIDGenerator();
@@ -91,6 +94,8 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
 
     public int DataRowIndex => this.dataRowIndex;
 
+    public string? SkipReason => this.skipReason;
+
     public string TestCaseDisplayName =>
         this.testCaseDisplayName ?? this.scenarioTestMethod!.MethodName;
 
@@ -114,6 +119,7 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
             }
         }
         this.testCaseDisplayName = info.GetValue<string?>("dn");
+        this.skipReason = info.GetValue<string?>("sr");
     }
 
     public void Serialize(IXunitSerializationInfo info)
@@ -145,13 +151,18 @@ public sealed class ScenarioTestCase : ITestCase, IXunitSerializable
         {
             info.AddValue("dn", this.testCaseDisplayName);
         }
+
+        if (this.skipReason is not null)
+        {
+            info.AddValue("sr", this.skipReason);
+        }
     }
 
     #region StuffIDontCareAboutRightNow
 
     bool ITestCaseMetadata.Explicit => false;
 
-    string? ITestCaseMetadata.SkipReason => null;
+    string? ITestCaseMetadata.SkipReason => this.skipReason;
 
     public string? SourceFilePath { get; private set; }
 

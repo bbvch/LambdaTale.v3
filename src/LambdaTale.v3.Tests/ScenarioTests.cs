@@ -141,11 +141,21 @@ public class ScenarioTests
         "And value is positive".x(() => Assert.True(value > 0));
     }
 
-    // TODO: db: Skipped cases are currently not shown / discovered at all.
-    [Scenario(SkipTestWithoutData = true)]
-    public void ScenarioSkippedWhenNoData()
+    [Scenario(Skip = "demonstrating skip")]
+    public void SkippedScenario()
     {
-        "This step should never run".x(() => Assert.Fail("Should have been skipped"));
+        "Given a step".x(() => { });
+        "When another step".x(() => { });
+        "Then a final step".x(() => Assert.Fail("should not run"));
+    }
+
+    [Scenario(Skip = "demonstrating skip with data")]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void SkippedScenarioWithData(int value)
+    {
+        $"Given value is {value}".x(() => { });
+        "Then it should never run".x(() => Assert.Fail("should not run"));
     }
 
     private class TestClassData : IEnumerable<TheoryDataRow>

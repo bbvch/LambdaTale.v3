@@ -12,6 +12,8 @@ public class ScenarioAttribute(
 
     public bool SkipTestWithoutData { get; init; }
 
+    public string? Skip { get; init; }
+
     public string? SourceFilePath { get; } = sourceFilePath;
 
     public int? SourceLineNumber { get; } = sourceLineNumber < 1 ? null : sourceLineNumber;

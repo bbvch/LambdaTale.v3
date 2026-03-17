@@ -117,7 +117,8 @@ public class ScenarioDiscoverer(ScenarioTestAssembly scenarioTestAssembly)
                 dataRowIndex: dataRowIndex,
                 testCaseDisplayName: methodDisplayName,
                 sourceFilePath: attr.SourceFilePath,
-                sourceLineNumber: attr.SourceLineNumber));
+                sourceLineNumber: attr.SourceLineNumber,
+                skipReason: attr.Skip));
 
         foreach (var test in steps)
         {
