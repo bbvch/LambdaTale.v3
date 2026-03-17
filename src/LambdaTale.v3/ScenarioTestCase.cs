@@ -362,7 +362,19 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             : Activator.CreateInstance(this.TestClass.Class, constructorArguments)!;
 
         using var ctx = Scenario.Acquire();
-        _ = this.TestMethod.Method.Invoke(testClassInstance, methodArguments);
+        var invocationArguments = methodArguments;
+        if (invocationArguments is null)
+        {
+            var parameters = this.TestMethod.Method.GetParameters();
+            if (parameters.Length > 0)
+            {
+                invocationArguments = parameters
+                    .Select(p => p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null)
+                    .ToArray();
+            }
+        }
+
+        _ = this.TestMethod.Method.Invoke(testClassInstance, invocationArguments);
         var steps = Scenario.TestDefinitions.OrderBy(td => td.index).ToList();
 
         var failed = false;
