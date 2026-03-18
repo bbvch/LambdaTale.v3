@@ -382,7 +382,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         for (var i = 0; i < steps.Count; i++)
         {
             var td = steps[i];
-            var step = new ScenarioStep(this, i, td.Tale, td.Lambda);
+            var step = new ScenarioStep(this, i, td.Tale);
             var testUniqueId = step.UniqueID;
             summary.Total++;
 

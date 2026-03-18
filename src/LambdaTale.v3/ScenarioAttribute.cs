@@ -6,7 +6,7 @@ namespace LambdaTale.v3;
 [AttributeUsage(AttributeTargets.Method)]
 [XunitTestCaseDiscoverer(typeof(ScenarioDiscoverer))]
 [IgnoreXunitAnalyzersRule1013]
-public class ScenarioAttribute(
+public sealed class ScenarioAttribute(
     [CallerFilePath] string? sourceFilePath = null,
     [CallerLineNumber] int sourceLineNumber = -1) : Attribute, IFactAttribute
 {
@@ -25,6 +25,7 @@ public class ScenarioAttribute(
     int IFactAttribute.Timeout => 0;
 }
 
+[AttributeUsage(AttributeTargets.Class)]
 public sealed class IgnoreXunitAnalyzersRule1013Attribute : Attribute
 {
 }

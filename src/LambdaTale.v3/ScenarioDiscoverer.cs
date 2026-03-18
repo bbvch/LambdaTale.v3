@@ -22,6 +22,7 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
                 result.Add(MakeTestCase(testMethod, null, null, attr.Skip, attr));
             }
 
+            // TODO db: This should probably add a skipped test
             return result;
         }
 

@@ -8,22 +8,39 @@ public sealed class ScenarioStep : IXunitTest
     public ScenarioStep(
         ScenarioTestCase parentTestCase,
         int stepIndex,
-        string tale,
-        TaleBody body)
+        string tale)
     {
         this.ParentTestCase = parentTestCase;
         this.StepIndex = stepIndex;
         this.Tale = tale;
-        this.Body = body;
     }
 
-    public ScenarioTestCase ParentTestCase { get; }
-    public int StepIndex { get; }
-    public string Tale { get; }
-    public TaleBody Body { get; }
+    private ScenarioTestCase ParentTestCase { get; }
+    private int StepIndex { get; }
+    private string Tale { get; }
 
     public ITestCase TestCase => this.ParentTestCase;
-    public string TestDisplayName => $"[{this.StepIndex}] {this.Tale}";
+    public string TestDisplayName
+    {
+        get
+        {
+            var args = this.ParentTestCase.TestMethodArguments;
+            if (args is null || args.Length == 0)
+            {
+                return $"[{this.StepIndex}] {this.Tale}";
+            }
+
+            var formatted = string.Join(", ", args.Select(FormatArg));
+            return $"({formatted}) [{this.StepIndex}] {this.Tale}";
+        }
+    }
+
+    private static string FormatArg(object? arg) => arg switch
+    {
+        null => "null",
+        string s => $"\"{s}\"",
+        _ => arg.ToString() ?? "null",
+    };
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
     public string UniqueID => UniqueIDGenerator.ForTest(this.ParentTestCase.UniqueID, this.StepIndex);
 
