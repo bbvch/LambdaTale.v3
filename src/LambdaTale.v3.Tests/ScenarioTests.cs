@@ -108,6 +108,13 @@ public class ScenarioTests
     }
 
     [Scenario]
+    [InlineData(5)]
+    public void ScenarioWithInlineDataAndVariables(int value, string varAlpha, string varBeta)
+    {
+        $"Given value is {value}".x(() => { });
+        "Then value is what is the specified value of '5'".x(() => Assert.Equal(5, value));
+    }
+    [Scenario]
     [InlineData(2, "two")]
     [InlineData(3, "three")]
     [InlineData(4, "four")]
