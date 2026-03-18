@@ -179,9 +179,6 @@ public class ScenarioTests
         "Then x is 1".x(() => Assert.Equal(1, x));
     }
 
-    // Verifies: ContinueOnError failure allows subsequent steps to run.
-    // Expected runner output: step 1 = Failed, steps 2 and 3 = Passed.
-    // The whole test case is marked failed (correct — a step threw).
     [Scenario]
     public void ContinueOnError_SubsequentStepStillRuns()
     {
@@ -195,9 +192,6 @@ public class ScenarioTests
         "And we can assert the subsequent step ran".x(() => Assert.True(subsequentStepRan));
     }
 
-    // Verifies: a ContinueOnError step that appears AFTER stopped=true is still skipped.
-    // A StopOnError failure sets stopped=true; subsequent steps — including ContinueOnError — are skipped.
-    // Expected runner output: step 1 = Failed, steps 2 and 3 = Skipped.
     [Scenario]
     public void StopOnError_GatesContinueOnErrorStepsThatFollow()
     {
@@ -207,6 +201,11 @@ public class ScenarioTests
             throw new InvalidOperationException("intentional failure"));
         "Then a ContinueOnError step is skipped".ContinueOnError(() => step2Ran = true);
         "And a second ContinueOnError step is also skipped".ContinueOnError(() => step3Ran = true);
+        "And the variables are set".ContinueOnError(() =>
+        {
+            Assert.True(step2Ran);
+            Assert.True(step3Ran);
+        });
     }
 
     private class TestClassData : IEnumerable<TheoryDataRow>

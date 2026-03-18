@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace LambdaTale.v3;
 
-public sealed class Scenario
+public static class Scenario
 {
     private static readonly AsyncLocal<List<ScenarioTestDefinition>?> Tests = new();
     private static readonly AsyncLocal<int> LambdaIndex = new();
@@ -12,7 +12,7 @@ public sealed class Scenario
     {
         Tests.Value = [];
         LambdaIndex.Value = 0;
-        return ScenarioContext.Instance;
+        return new Cleanup();
     }
 
     public static void Add(string tale, Action lambda, OnError onError = OnError.Stop)
@@ -34,12 +34,10 @@ public sealed class Scenario
 
     [DoesNotReturn]
     private static List<ScenarioTestDefinition> MissingContext() =>
-        throw new InvalidOperationException("Missing " + nameof(ScenarioContext));
+        throw new InvalidOperationException($"Call {nameof(Scenario)}.{nameof(Acquire)}() before adding steps.");
 
-    private sealed class ScenarioContext : IDisposable
+    private sealed class Cleanup : IDisposable
     {
-        public static readonly IDisposable Instance = new ScenarioContext();
-
         public void Dispose() => Tests.Value = null;
     }
 }
