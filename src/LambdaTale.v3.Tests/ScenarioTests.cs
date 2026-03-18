@@ -155,6 +155,60 @@ public class ScenarioTests
         "Then it should never run".x(() => Assert.Fail("should not run"));
     }
 
+    [Scenario]
+    public void ScenarioUsingContinueOnError()
+    {
+        var x = 0;
+        "Given x is set to 1 using ContinueOnError".ContinueOnError(() => x = 1);
+        "Then x is 1".x(() => Assert.Equal(1, x));
+    }
+
+    [Scenario]
+    public void ScenarioUsingStopOnError()
+    {
+        var x = 0;
+        "Given x is set to 1 using StopOnError".StopOnError(() => x = 1);
+        "Then x is 1".x(() => Assert.Equal(1, x));
+    }
+
+    [Scenario]
+    public void ScenarioUsingXWithOnErrorParam()
+    {
+        var x = 0;
+        "Given x is set to 1".x(() => x = 1, OnError.Continue);
+        "Then x is 1".x(() => Assert.Equal(1, x));
+    }
+
+    // Verifies: ContinueOnError failure allows subsequent steps to run.
+    // Expected runner output: step 1 = Failed, steps 2 and 3 = Passed.
+    // The whole test case is marked failed (correct — a step threw).
+    [Scenario]
+    public void ContinueOnError_SubsequentStepStillRuns()
+    {
+        var subsequentStepRan = false;
+        "Given a step that fails with ContinueOnError".ContinueOnError(() =>
+        {
+            subsequentStepRan = false; // reset before throw
+            throw new InvalidOperationException("intentional failure");
+        });
+        "Then the subsequent step still runs".x(() => subsequentStepRan = true);
+        "And we can assert the subsequent step ran".x(() => Assert.True(subsequentStepRan));
+    }
+
+    // Verifies: a ContinueOnError step that appears AFTER stopped=true is still skipped.
+    // A StopOnError failure sets stopped=true; subsequent steps — including ContinueOnError — are skipped.
+    // Expected runner output: step 1 = Failed, steps 2 and 3 = Skipped.
+    [Scenario]
+    public void StopOnError_GatesContinueOnErrorStepsThatFollow()
+    {
+        var step2Ran = false;
+        var step3Ran = false;
+        "Given a StopOnError step that fails".StopOnError(() =>
+            throw new InvalidOperationException("intentional failure"));
+        "Then a ContinueOnError step is skipped".ContinueOnError(() => step2Ran = true);
+        "And a second ContinueOnError step is also skipped".ContinueOnError(() => step3Ran = true);
+    }
+
     private class TestClassData : IEnumerable<TheoryDataRow>
     {
         public IEnumerator<TheoryDataRow> GetEnumerator()

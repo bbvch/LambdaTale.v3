@@ -377,7 +377,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         _ = this.TestMethod.Method.Invoke(testClassInstance, invocationArguments);
         var steps = Scenario.TestDefinitions.OrderBy(td => td.index).ToList();
 
-        var failed = false;
+        var stopped = false;
 
         for (var i = 0; i < steps.Count; i++)
         {
@@ -386,7 +386,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             var testUniqueId = step.UniqueID;
             summary.Total++;
 
-            if (failed)
+            if (stopped)
             {
                 summary.Skipped++;
                 SendSkippedStep(messageBus, cts, step, testUniqueId,
@@ -433,8 +433,11 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             catch (Exception ex)
             {
                 failure = ex;
-                failed = true;
                 summary.Failed++;
+                if (td.OnError == OnError.Stop)
+                {
+                    stopped = true;
+                }
             }
 
             sw.Stop();
