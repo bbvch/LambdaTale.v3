@@ -363,15 +363,22 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
         using var ctx = Scenario.Acquire();
         var invocationArguments = methodArguments;
+        var parameters = this.TestMethod.Method.GetParameters();
         if (invocationArguments is null)
         {
-            var parameters = this.TestMethod.Method.GetParameters();
             if (parameters.Length > 0)
             {
                 invocationArguments = parameters
                     .Select(p => p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null)
                     .ToArray();
             }
+        }
+        else if (invocationArguments.Length < parameters.Length)
+        {
+            invocationArguments = invocationArguments
+                .Concat(parameters.Skip(invocationArguments.Length)
+                    .Select(p => p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null))
+                .ToArray();
         }
 
         _ = this.TestMethod.Method.Invoke(testClassInstance, invocationArguments);
