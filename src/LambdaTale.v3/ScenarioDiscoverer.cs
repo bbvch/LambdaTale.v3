@@ -14,12 +14,18 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
         var result = new List<IXunitTestCase>();
         var dataAttributes = testMethod.DataAttributes;
 
+        var methodDisplay = discoveryOptions.MethodDisplayOrDefault();
+        var formatter = new DisplayNameFormatter(methodDisplay, discoveryOptions.MethodDisplayOptionsOrDefault());
+        var baseDisplayName = methodDisplay == TestMethodDisplay.ClassAndMethod
+            ? formatter.Format($"{testMethod.TestClass.TestClassName}.{testMethod.MethodName}")
+            : formatter.Format(testMethod.MethodName);
+
         // Case 1: no data attributes
         if (dataAttributes.Count == 0)
         {
             if (!attr.SkipTestWithoutData)
             {
-                result.Add(MakeTestCase(testMethod, null, null, attr.Skip, attr));
+                result.Add(MakeTestCase(testMethod, null, testMethod.GetDisplayName(baseDisplayName, null, null, null), attr.Skip, attr));
             }
 
             // TODO db: This should probably add a skipped test
@@ -33,7 +39,7 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             result.Add(new ScenarioTestCase(
                 testMethod,
                 testMethodArguments: null,
-                testCaseDisplayName: null,
+                testCaseDisplayName: testMethod.GetDisplayName(baseDisplayName, null, null, null),
                 skipReason: attr.Skip,
                 sourceFilePath: attr.SourceFilePath,
                 sourceLineNumber: attr.SourceLineNumber,
@@ -51,7 +57,7 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             {
                 var args = row.GetData();
                 var displayName = row.TestDisplayName
-                                  ?? testMethod.GetDisplayName(testMethod.MethodName, row.Label, args, null);
+                                  ?? testMethod.GetDisplayName(baseDisplayName, row.Label, args, null);
                 var rowSkip = row.Skip ?? attr.Skip;
                 result.Add(MakeTestCase(testMethod, args, displayName, rowSkip, attr));
             }
