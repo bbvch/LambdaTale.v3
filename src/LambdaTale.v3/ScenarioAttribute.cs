@@ -29,3 +29,9 @@ public sealed class ScenarioAttribute(
 public sealed class IgnoreXunitAnalyzersRule1013Attribute : Attribute
 {
 }
+
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class BackgroundAttribute : Attribute { }
+
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class TeardownAttribute : Attribute { }

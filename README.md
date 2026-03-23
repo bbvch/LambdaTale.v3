@@ -26,10 +26,11 @@ Current state of the implementation:
 - [x] Allow specifying variables as function parameters
 - [x] Use class member as data in specs
 - [x] Support both `Action` and `Func<Task>` as steps
-- [ ] Try out the new version in a actual project (This is rn mostly working aside from `[Example]` (in *current-project*)
-- [ ] Support `[Example]` to supply testdata
-- [ ] Show tests correctly in the testrunners
-- [ ] Reintroduce way for `[Background]` and `[Teardown]` function
+- [x] Try out the new version in a actual project
+- [x] Support `[InlineData]`, `[MemberData]`, and `[ClassData]` to supply testdata
+- [x] Show tests correctly in the testrunners
+- [x] Support skipping scenarios with `Skip` parameter
+- [x] Support `ContinueOnError` and `StopOnError` step behavior
+- [x] Reintroduce way for `[Background]` and `[Teardown]` function
 - [ ] After a first step clean up the implementation
 - [ ] Nuget package and infrastructure around that
-
