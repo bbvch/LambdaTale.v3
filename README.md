@@ -1,22 +1,23 @@
-## LambdaTale v3 - TryOut
+# LambdaTale v3
 
-On this branch I am currently trying out if it will be easier to run scenarios with a "custom" TestFramework all the way
-down.
+This is an attempt at running scenarios with a "custom" TestFramework all the way down.
 
 This code is based on the "ObservationExample" in [xunit/samples.xunit](https://github.com/xunit/samples.xunit/)
 
 This is a lot more code and work than to do it using all the `IXunitXYZ` interfaces, but maybe the better way. Time will tell.
 
-__*Use this branch at your own peril*__
+__*Use this at your own peril*__
 
 Current state of the implementation:
+
 - LambdaTale Scenarios are run using a completely separate Execution-Pipeline
   - Running of Testassemblies is 'unified' using a custom wrapper to run discovery once for ""normal"" XUnit Tests and for Scenarios
   - After the discovery phase the tests are dispatched to the LambdaTale and XUnit execution pipeline sequentially
 - To use LambdaTale it is required to add `[assembly: TestFramework(typeof(CombinedTestFramework))]` to the test assembly
 - Test project currently has a bit of a weird requirement for xunit.v3 packages -> due to missing nuspec and usage of extensionability
 
-### Features that should probably be there for a "MVP" scope
+## Features that should probably be there for a "MVP" scope
+
 - [x] Specify a Scenario test using `[Scenario]`
 - [x] Discover execution steps for each scenario method using the `.x(() => {})` extension method
 - [x] Execute each discovered step as a test

@@ -1,13 +1,14 @@
 <Project>
 
   <PropertyGroup>
+    <Version>0.0.1-alpha.1</Version>
     <AssemblyName>bbv.$(MSBuildProjectName)</AssemblyName>
-    <SupportedDotnetVersion>net10.0</SupportedDotnetVersion>
-    <LatestDotnetVersion>net10.0</LatestDotnetVersion>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <Deterministic>true</Deterministic>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <LangVersion>14.0</LangVersion>
-    <NoWarn>$(NoWarn);CA1014</NoWarn>    <!-- Mark assemblies with CLSCompliant -->
     <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
