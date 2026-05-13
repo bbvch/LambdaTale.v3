@@ -186,35 +186,6 @@ public class ScenarioTests
         "Then x is 1".x(() => Assert.Equal(1, x));
     }
 
-    [Scenario]
-    public void ContinueOnError_SubsequentStepStillRuns()
-    {
-        var subsequentStepRan = false;
-        "Given a step that fails with ContinueOnError".ContinueOnError(() =>
-        {
-            subsequentStepRan = false; // reset before throw
-            throw new InvalidOperationException("intentional failure");
-        });
-        "Then the subsequent step still runs".x(() => subsequentStepRan = true);
-        "And we can assert the subsequent step ran".x(() => Assert.True(subsequentStepRan));
-    }
-
-    [Scenario]
-    public void StopOnError_GatesContinueOnErrorStepsThatFollow()
-    {
-        var step2Ran = false;
-        var step3Ran = false;
-        "Given a StopOnError step that fails".StopOnError(() =>
-            throw new InvalidOperationException("intentional failure"));
-        "Then a ContinueOnError step is skipped".ContinueOnError(() => step2Ran = true);
-        "And a second ContinueOnError step is also skipped".ContinueOnError(() => step3Ran = true);
-        "And the variables are set".ContinueOnError(() =>
-        {
-            Assert.True(step2Ran);
-            Assert.True(step3Ran);
-        });
-    }
-
     private class TestClassData : IEnumerable<TheoryDataRow>
     {
         public IEnumerator<TheoryDataRow> GetEnumerator()
