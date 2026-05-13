@@ -12,7 +12,6 @@ public class ScenarioTests
     [Fact]
     public void ShouldPass() => Assert.True(true);
 
-
     [Theory]
     [InlineData(0)]
     public void Theory(int value) => Assert.Equal(0, value);
@@ -86,9 +85,6 @@ public class ScenarioTests
     [Scenario]
     public void ScenarioWithInitializedContextOutsideOfSteps()
     {
-        // NOTE: This should really not happen, as it doesn't make sense to write code outside of step definitions.
-        // Code written before the first step should be able to be reasonably handled, though.
-        // Any code in between, or after all, steps is undefined behavior.
         var x = 8;
         $"Given a value was initialized outside of the steps with value [{x}]".x(() => { });
 
@@ -114,6 +110,7 @@ public class ScenarioTests
         $"Given value is {value}".x(() => { });
         "Then value is what is the specified value of '5'".x(() => Assert.Equal(5, value));
     }
+
     [Scenario]
     [InlineData(2, "two")]
     [InlineData(3, "three")]
@@ -125,7 +122,6 @@ public class ScenarioTests
         "And value is positive".x(() => Assert.True(value > 0));
     }
 
-
     [Scenario]
     [MemberData(nameof(TestMemberData))]
     public void ScenarioWithMemberData(int value, string name)
@@ -134,7 +130,6 @@ public class ScenarioTests
         $"Then name is '{name}'".x(() => Assert.NotEmpty(name));
         "And value is positive".x(() => Assert.True(value > 0));
     }
-
 
     [Scenario]
     [ClassData(typeof(TestClassData))]

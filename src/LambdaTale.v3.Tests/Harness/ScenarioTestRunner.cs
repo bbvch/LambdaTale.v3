@@ -1,4 +1,3 @@
-using System.Reflection;
 using Xunit.Sdk;
 using Xunit.v3;
 
@@ -13,17 +12,30 @@ internal static class ScenarioTestRunner
     public static async Task<CapturingMessageBus> RunFixture<TFixture>(
         string methodName,
         string? testCaseDisplayName = null,
+        string? skipReason = null,
         bool @explicit = false,
         ExplicitOption explicitOption = ExplicitOption.Off,
         Type[]? skipExceptions = null,
         Type? skipType = null,
         string? skipUnless = null,
         string? skipWhen = null,
-        int timeout = 0)
+        int timeout = 0,
+        bool isDelayEnumerated = false)
     {
         var bus = new CapturingMessageBus();
-        var testCase = BuildTestCase<TFixture>(
-            methodName, testCaseDisplayName, @explicit, skipExceptions, skipType, skipUnless, skipWhen, timeout);
+        var testMethod = FixtureMethod.For<TFixture>(methodName);
+        var testCase = new ScenarioTestCase(
+            testMethod,
+            testCaseDisplayName: testCaseDisplayName,
+            skipReason: skipReason,
+            @explicit: @explicit,
+            skipExceptions: skipExceptions,
+            skipType: skipType,
+            skipUnless: skipUnless,
+            skipWhen: skipWhen,
+            timeout: timeout,
+            isDelayEnumerated: isDelayEnumerated);
+
         await testCase.Run(
             explicitOption,
             bus,
@@ -31,40 +43,5 @@ internal static class ScenarioTestRunner
             new ExceptionAggregator(),
             new CancellationTokenSource());
         return bus;
-    }
-
-    private static ScenarioTestCase BuildTestCase<TFixture>(
-        string methodName,
-        string? testCaseDisplayName,
-        bool @explicit,
-        Type[]? skipExceptions,
-        Type? skipType,
-        string? skipUnless,
-        string? skipWhen,
-        int timeout)
-    {
-        var type = typeof(TFixture);
-        var method = type.GetMethod(methodName,
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new ArgumentException($"Method '{methodName}' not found on {type.FullName}", nameof(methodName));
-
-        var assembly = new XunitTestAssembly(type.Assembly);
-        var collection = new XunitTestCollection(
-            assembly,
-            collectionDefinition: null,
-            disableParallelization: true,
-            displayName: $"Fixture: {type.Name}");
-        var testClass = new XunitTestClass(type, collection);
-        var testMethod = new XunitTestMethod(testClass, method, testMethodArguments: []);
-
-        return new ScenarioTestCase(
-            testMethod,
-            testCaseDisplayName: testCaseDisplayName,
-            @explicit: @explicit,
-            skipExceptions: skipExceptions,
-            skipType: skipType,
-            skipUnless: skipUnless,
-            skipWhen: skipWhen,
-            timeout: timeout);
     }
 }

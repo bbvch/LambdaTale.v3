@@ -2,9 +2,6 @@ using Xunit;
 
 namespace LambdaTale.v3.Tests;
 
-// ─── Background ───────────────────────────────────────────────────────────────
-
-/// Tests that background steps run before scenario steps.
 public class BackgroundOrderTests
 {
     private readonly List<string> _log = [];
@@ -23,7 +20,6 @@ public class BackgroundOrderTests
     }
 }
 
-/// Tests that background steps run before scenario steps when scenario has multiple steps.
 public class BackgroundWithMultipleScenarioStepsTests
 {
     private readonly List<string> _log = [];
@@ -44,9 +40,6 @@ public class BackgroundWithMultipleScenarioStepsTests
     }
 }
 
-// ─── Teardown ─────────────────────────────────────────────────────────────────
-
-/// Tests that teardown steps run after scenario steps.
 public class TeardownOrderTests
 {
     private readonly List<string> _log = [];
@@ -69,7 +62,6 @@ public class TeardownOrderTests
     }
 }
 
-/// Tests that async background and async teardown methods are awaited correctly.
 public class AsyncBackgroundAndTeardownTests
 {
     private readonly List<string> _log = [];
@@ -99,4 +91,3 @@ public class AsyncBackgroundAndTeardownTests
         "Then background ran before scenario".x(() => Assert.Equal(["bg", "scenario"], _log));
     }
 }
-

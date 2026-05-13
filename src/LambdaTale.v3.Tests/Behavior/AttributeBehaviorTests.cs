@@ -118,6 +118,70 @@ public class AttributeBehaviorTests
         Assert.Contains(nameof(SkipFlags.ShouldRun), skipped.Reason);
     }
 
+    [Fact]
+    public async Task SkipUnlessResolvesPropertyOnTestClassWhenSkipTypeIsNull()
+    {
+        var bus = await ScenarioTestRunner.RunFixture<FixtureWithFlag>(
+            nameof(FixtureWithFlag.Scenario),
+            skipUnless: nameof(FixtureWithFlag.IsEnabled));
+
+        var skipped = Assert.Single(bus.OfType<ITestSkipped>());
+        Assert.Contains(nameof(FixtureWithFlag.IsEnabled), skipped.Reason);
+    }
+
+    [Fact]
+    public async Task BothSkipUnlessAndSkipWhenThrowsInvalidOperation()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ScenarioTestRunner.RunFixture<SimpleFixture>(
+                nameof(SimpleFixture.Scenario),
+                skipType: typeof(SkipFlags),
+                skipUnless: nameof(SkipFlags.ShouldRun),
+                skipWhen: nameof(SkipFlags.ShouldRun)));
+
+        Assert.Contains("Only one", ex.Message);
+    }
+
+    [Fact]
+    public async Task MissingConditionalSkipPropertyThrowsInvalidOperation()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ScenarioTestRunner.RunFixture<SimpleFixture>(
+                nameof(SimpleFixture.Scenario),
+                skipType: typeof(SkipFlags),
+                skipUnless: "NonExistentProperty"));
+
+        Assert.Contains("NonExistentProperty", ex.Message);
+    }
+
+    // ─── Skip-reason precedence ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task SkipReasonWinsOverExplicitOption()
+    {
+        var bus = await ScenarioTestRunner.RunFixture<SimpleFixture>(
+            nameof(SimpleFixture.Scenario),
+            skipReason: "explicit user skip",
+            @explicit: true,
+            explicitOption: ExplicitOption.Off);
+
+        var skipped = Assert.Single(bus.OfType<ITestSkipped>());
+        Assert.Equal("explicit user skip", skipped.Reason);
+    }
+
+    [Fact]
+    public async Task SkipReasonWinsOverConditionalSkip()
+    {
+        var bus = await ScenarioTestRunner.RunFixture<SimpleFixture>(
+            nameof(SimpleFixture.Scenario),
+            skipReason: "explicit user skip",
+            skipType: typeof(SkipFlags),
+            skipUnless: nameof(SkipFlags.ShouldNotRun));
+
+        var skipped = Assert.Single(bus.OfType<ITestSkipped>());
+        Assert.Equal("explicit user skip", skipped.Reason);
+    }
+
     // ─── Timeout ──────────────────────────────────────────────────────────────
 
     [Fact]
@@ -162,6 +226,12 @@ public class AttributeBehaviorTests
     {
         public static bool ShouldRun => true;
         public static bool ShouldNotRun => false;
+    }
+
+    private sealed class FixtureWithFlag
+    {
+        public static bool IsEnabled => false;
+        public void Scenario() => "a step".x(() => { });
     }
 
     private sealed class LongRunningFixture
