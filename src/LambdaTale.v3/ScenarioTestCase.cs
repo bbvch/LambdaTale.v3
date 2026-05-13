@@ -628,7 +628,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
                 var mainSteps = Scenario.TestDefinitions.ToList();
                 mainStepCount = mainSteps.Count;
-                summary.Aggregate(await this.RunStepLoop(mainSteps, stepIndexOffset: 0, messageBus, cts, ids));
+                summary.Aggregate(await this.RunStepLoop(mainSteps, stepIndexOffset: 0, methodArguments, messageBus, cts, ids));
             }
         }
         finally
@@ -661,7 +661,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     else
                     {
                         var tdSteps = Scenario.TestDefinitions.ToList();
-                        summary.Aggregate(await this.RunStepLoop(tdSteps, stepIndexOffset: teardownOffset, messageBus, cts, ids));
+                        summary.Aggregate(await this.RunStepLoop(tdSteps, stepIndexOffset: teardownOffset, methodArguments, messageBus, cts, ids));
                     }
                 }
                 catch (Exception tdEx)
@@ -682,6 +682,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     private async ValueTask<RunSummary> RunStepLoop(
         List<ScenarioTestDefinition> steps,
         int stepIndexOffset,
+        object?[]? rowArgs,
         IMessageBus messageBus,
         CancellationTokenSource cts,
         MsgIds ids)
@@ -692,7 +693,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         for (var i = 0; i < steps.Count; i++)
         {
             var td = steps[i];
-            var step = new ScenarioStep(this, stepIndexOffset + i, td.Tale);
+            var step = new ScenarioStep(this, stepIndexOffset + i, td.Tale, rowArgs);
             var testUniqueId = step.UniqueID;
             summary.Total++;
 

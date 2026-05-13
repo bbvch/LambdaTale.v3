@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using LambdaTale.v3.Tests.Harness;
 using Xunit;
@@ -43,6 +44,10 @@ public class ScenarioDiscovererTests
 
     [Fact]
     [ThrowingDataAttribute]
+    [SuppressMessage(
+        "Usage",
+        "xUnit1005:Fact methods should not have test data",
+        Justification = "ThrowingDataAttribute is attached deliberately so that testMethod.DataAttributes surfaces it to the discoverer under test.")]
     public async Task DiscoverReturnsExecutionErrorTestCaseWhenDataAttributeThrows()
     {
         var testMethod = (IXunitTestMethod)TestContext.Current.TestMethod!;
