@@ -31,7 +31,7 @@ public class DataDrivenBehaviorTests
 
     private sealed class DelayEnumeratedFixture
     {
-        [TwoRowsDataAttribute]
+        [TwoRowsData]
         public void Scenario(int value) =>
             $"value is {value}".x(() => Assert.True(value > 0));
     }

@@ -43,7 +43,7 @@ public class ScenarioDiscovererTests
     }
 
     [Fact]
-    [ThrowingDataAttribute]
+    [ThrowingData]
     [SuppressMessage(
         "Usage",
         "xUnit1005:Fact methods should not have test data",
@@ -137,13 +137,13 @@ public class ScenarioDiscovererTests
 
     private sealed class EmptyDataFixture
     {
-        [EmptyDataAttribute]
+        [EmptyData]
         public void Method() { }
     }
 
     private sealed class DelayEnumeratedFixture
     {
-        [DelayEnumeratedDataAttribute]
+        [DelayEnumeratedData]
         public void Method(int value) { }
     }
 }

@@ -4,19 +4,19 @@ namespace LambdaTale.v3.Tests;
 
 public class BackgroundOrderTests
 {
-    private readonly List<string> _log = [];
+    private readonly List<string> log = [];
 
     [Background]
     public void Setup()
     {
-        "Given background setup".x(() => _log.Add("background"));
+        "Given background setup".x(() => this.log.Add("background"));
     }
 
     [Scenario]
     public void BackgroundRunsBeforeScenario()
     {
-        "When the scenario runs".x(() => _log.Add("scenario"));
-        "Then background ran first".x(() => Assert.Equal(["background", "scenario"], _log));
+        "When the scenario runs".x(() => this.log.Add("scenario"));
+        "Then background ran first".x(() => Assert.Equal(["background", "scenario"], this.log));
     }
 }
 

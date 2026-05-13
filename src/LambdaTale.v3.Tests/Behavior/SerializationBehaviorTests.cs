@@ -46,7 +46,7 @@ public class SerializationBehaviorTests
         Assert.Equal("PropX", restored.SkipUnless);
         Assert.Null(restored.SkipWhen);
         Assert.Equal(5000, restored.Timeout);
-        Assert.Equal(new[] { typeof(InvalidOperationException), typeof(ArgumentException) }, restored.SkipExceptions);
+        Assert.Equal([typeof(InvalidOperationException), typeof(ArgumentException)], restored.SkipExceptions);
         Assert.NotNull(restored.TestMethodArguments);
         Assert.Equal(3, restored.TestMethodArguments!.Length);
         Assert.Equal("hello", restored.TestMethodArguments[0]);
