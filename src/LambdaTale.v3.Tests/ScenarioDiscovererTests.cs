@@ -52,6 +52,6 @@ public class ScenarioDiscovererTests
         var errorCase = Assert.IsType<ExecutionErrorTestCase>(single);
         Assert.Equal(testMethod.MethodName, errorCase.TestCaseDisplayName);
         Assert.Equal(expectedUniqueId, errorCase.UniqueID);
-        Assert.Equal(ThrowingDataAttribute.ThrownException.ToString(), errorCase.ErrorMessage);
+        Assert.Equal(ThrowingDataAttribute.ThrownException.Message, errorCase.ErrorMessage);
     }
 }

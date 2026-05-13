@@ -16,11 +16,19 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             var result = new List<IXunitTestCase>();
             var dataAttributes = testMethod.DataAttributes;
 
-            var methodDisplay = discoveryOptions.MethodDisplayOrDefault();
-            var formatter = new DisplayNameFormatter(methodDisplay, discoveryOptions.MethodDisplayOptionsOrDefault());
-            var baseDisplayName = methodDisplay == TestMethodDisplay.ClassAndMethod
-                ? formatter.Format($"{testMethod.TestClass.TestClassName}.{testMethod.MethodName}")
-                : formatter.Format(testMethod.MethodName);
+            string baseDisplayName;
+            if (attr.DisplayName is not null)
+            {
+                baseDisplayName = attr.DisplayName;
+            }
+            else
+            {
+                var methodDisplay = discoveryOptions.MethodDisplayOrDefault();
+                var formatter = new DisplayNameFormatter(methodDisplay, discoveryOptions.MethodDisplayOptionsOrDefault());
+                baseDisplayName = methodDisplay == TestMethodDisplay.ClassAndMethod
+                    ? formatter.Format($"{testMethod.TestClass.TestClassName}.{testMethod.MethodName}")
+                    : formatter.Format(testMethod.MethodName);
+            }
 
             // Case 1: no data attributes
             if (dataAttributes.Count == 0)
@@ -45,7 +53,13 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
                     sourceFilePath: attr.SourceFilePath,
                     sourceLineNumber: attr.SourceLineNumber,
                     isDelayEnumerated: true,
-                    skipTestWithoutData: attr.SkipTestWithoutData));
+                    skipTestWithoutData: attr.SkipTestWithoutData,
+                    @explicit: attr.Explicit,
+                    skipExceptions: attr.SkipExceptions,
+                    skipType: attr.SkipType,
+                    skipUnless: attr.SkipUnless,
+                    skipWhen: attr.SkipWhen,
+                    timeout: attr.Timeout));
                 return result;
             }
 
@@ -84,7 +98,7 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
                 uniqueID: uniqueId,
                 sourceFilePath: null,
                 sourceLineNumber: null,
-                errorMessage: ex.ToString())];
+                errorMessage: ex.Message)];
         }
     }
 
@@ -99,5 +113,11 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             testCaseDisplayName: displayName,
             skipReason: skipReason,
             sourceFilePath: attr.SourceFilePath,
-            sourceLineNumber: attr.SourceLineNumber);
+            sourceLineNumber: attr.SourceLineNumber,
+            @explicit: attr.Explicit,
+            skipExceptions: attr.SkipExceptions,
+            skipType: attr.SkipType,
+            skipUnless: attr.SkipUnless,
+            skipWhen: attr.SkipWhen,
+            timeout: attr.Timeout);
 }

@@ -12,17 +12,24 @@ public sealed class ScenarioAttribute(
 {
     public bool SkipTestWithoutData { get; init; }
 
+    public string? DisplayName { get; init; }
+
+    public bool Explicit { get; init; }
+
+    public Type[]? SkipExceptions { get; init; }
+
+    public Type? SkipType { get; init; }
+
+    public string? SkipUnless { get; init; }
+
+    public string? SkipWhen { get; init; }
+
+    public int Timeout { get; init; }
+
     // IFactAttribute
-    string? IFactAttribute.DisplayName => null;
-    bool IFactAttribute.Explicit => false;
     public string? Skip { get; init; }
-    Type[]? IFactAttribute.SkipExceptions => null;
-    Type? IFactAttribute.SkipType => null;
-    string? IFactAttribute.SkipUnless => null;
-    string? IFactAttribute.SkipWhen => null;
     public string? SourceFilePath { get; } = sourceFilePath;
     public int? SourceLineNumber { get; } = sourceLineNumber < 1 ? null : sourceLineNumber;
-    int IFactAttribute.Timeout => 0;
 }
 
 [AttributeUsage(AttributeTargets.Class)]
