@@ -15,9 +15,9 @@ public sealed class ScenarioStep : IXunitTest
         this.Tale = tale;
     }
 
-    private ScenarioTestCase ParentTestCase { get; }
-    private int StepIndex { get; }
-    private string Tale { get; }
+    private readonly ScenarioTestCase ParentTestCase;
+    private readonly int StepIndex;
+    private readonly string Tale;
 
     public ITestCase TestCase => this.ParentTestCase;
     public string TestDisplayName
@@ -41,6 +41,7 @@ public sealed class ScenarioStep : IXunitTest
         string s => $"\"{s}\"",
         _ => arg.ToString() ?? "null",
     };
+
     public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
     public string UniqueID => UniqueIDGenerator.ForTest(this.ParentTestCase.UniqueID, this.StepIndex);
 

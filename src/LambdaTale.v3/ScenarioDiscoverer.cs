@@ -30,7 +30,6 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
                     result.Add(MakeTestCase(testMethod, null, testMethod.GetDisplayName(baseDisplayName, null, null, null), attr.Skip, attr));
                 }
 
-                // TODO db: This should probably add a skipped test
                 return result;
             }
 
@@ -74,7 +73,7 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
         }
         catch (Exception ex)
         {
-            var g = new UniqueIDGenerator();
+            using var g = new UniqueIDGenerator();
             g.Add(testMethod.UniqueID);
             g.Add("discovery-error");
             var uniqueId = g.Compute();

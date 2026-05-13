@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 
 namespace LambdaTale.v3;
 
@@ -42,11 +41,11 @@ public static class Scenario
     }
 }
 
-public record ScenarioTestDefinition(string Tale, TaleBody Lambda, int index, OnError OnError = OnError.Stop);
+public record ScenarioTestDefinition(string Tale, TaleBody Lambda, int Index, OnError OnError = OnError.Stop);
 
-public abstract record TaleBody(MethodInfo Method)
+public abstract record TaleBody
 {
-    public sealed record SynchronousTaleBody(Action Body) : TaleBody(Body.Method);
+    public sealed record SynchronousTaleBody(Action Body) : TaleBody;
 
-    public sealed record AsynchronousTaleBody(Func<Task> Body) : TaleBody(Body.Method);
+    public sealed record AsynchronousTaleBody(Func<Task> Body) : TaleBody;
 }

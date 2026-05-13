@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Reflection;
 using Xunit.Internal;
@@ -12,9 +13,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     private string? testCaseDisplayName;
     private bool isDelayEnumerated;
     private bool skipTestWithoutData;
-
-    private static readonly IReadOnlyDictionary<string, TestAttachment> EmptyAttachments =
-        new Dictionary<string, TestAttachment>();
+    private string[]? testMethodParameterTypesVSTest;
 
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase() { }
@@ -89,7 +88,9 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     public int TestMethodMetadataToken => this.TestMethod.Method.MetadataToken;
     public string TestMethodName => this.TestMethod.MethodName;
 
-    public string[] TestMethodParameterTypesVSTest => this.TestMethod.Parameters.Select(p => p.ParameterType.FullName ?? p.ParameterType.Name).ToArray();
+    public string[] TestMethodParameterTypesVSTest =>
+        this.testMethodParameterTypesVSTest ??=
+            this.TestMethod.Parameters.Select(p => p.ParameterType.FullName ?? p.ParameterType.Name).ToArray();
 
     public string TestMethodReturnTypeVSTest => this.TestMethod.ReturnType.FullName ?? this.TestMethod.ReturnType.Name;
 
@@ -174,34 +175,35 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         ExceptionAggregator __,
         CancellationTokenSource cancellationTokenSource)
     {
-        var assemblyUniqueId = this.TestCollection.TestAssembly.UniqueID;
-        var testCollectionUniqueId = this.TestCollection.UniqueID;
-        var testClassUniqueId = this.TestClass.UniqueID;
-        var testMethodUniqueId = this.TestMethod.UniqueID;
-        var testCaseUniqueId = this.UniqueID;
+        var ids = new MsgIds(
+            this.TestCollection.TestAssembly.UniqueID,
+            this.TestCollection.UniqueID,
+            this.TestClass.UniqueID,
+            this.TestMethod.UniqueID,
+            this.UniqueID);
         RunSummary summary;
 
         if (!messageBus.QueueMessage(new TestCaseStarting
             {
-                AssemblyUniqueID = assemblyUniqueId,
+                AssemblyUniqueID = ids.AssemblyId,
                 Explicit = false,
                 SkipReason = this.SkipReason,
                 SourceFilePath = this.SourceFilePath,
                 SourceLineNumber = this.SourceLineNumber,
                 TestCaseDisplayName = this.TestCaseDisplayName,
-                TestCaseUniqueID = testCaseUniqueId,
+                TestCaseUniqueID = ids.CaseId,
                 TestClassMetadataToken = this.TestClassMetadataToken,
                 TestClassName = this.TestClassName,
                 TestClassNamespace = this.TestMethod.TestClass.Class.Namespace,
                 TestClassSimpleName = this.TestClassSimpleName,
-                TestClassUniqueID = testClassUniqueId,
-                TestCollectionUniqueID = testCollectionUniqueId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
                 TestMethodArity = this.TestMethodArity,
                 TestMethodMetadataToken = this.TestMethodMetadataToken,
                 TestMethodName = this.TestMethodName,
                 TestMethodParameterTypesVSTest = this.TestMethodParameterTypesVSTest,
                 TestMethodReturnTypeVSTest = this.TestMethodReturnTypeVSTest,
-                TestMethodUniqueID = testMethodUniqueId,
+                TestMethodUniqueID = ids.MethodId,
                 Traits = this.Traits,
             }))
         {
@@ -210,28 +212,25 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
         if (this.SkipReason is not null)
         {
-            summary = this.SendSkippedTestCase(messageBus, cancellationTokenSource,
-                assemblyUniqueId, testCollectionUniqueId, testClassUniqueId, testMethodUniqueId, testCaseUniqueId);
+            summary = await this.SendSkippedTestCase(messageBus, cancellationTokenSource, ids);
         }
         else if (this.isDelayEnumerated)
         {
-            summary = await this.RunDelayEnumerated(messageBus, constructorArguments, cancellationTokenSource,
-                assemblyUniqueId, testCollectionUniqueId, testClassUniqueId, testMethodUniqueId, testCaseUniqueId);
+            summary = await this.RunDelayEnumerated(messageBus, constructorArguments, cancellationTokenSource, ids);
         }
         else
         {
-            summary = await this.RunWithArguments(messageBus, constructorArguments, this.TestMethodArguments, cancellationTokenSource,
-                assemblyUniqueId, testCollectionUniqueId, testClassUniqueId, testMethodUniqueId, testCaseUniqueId);
+            summary = await this.RunWithArguments(messageBus, constructorArguments, this.TestMethodArguments, cancellationTokenSource, ids);
         }
 
         if (!messageBus.QueueMessage(new TestCaseFinished
             {
-                AssemblyUniqueID = assemblyUniqueId,
+                AssemblyUniqueID = ids.AssemblyId,
                 ExecutionTime = summary.Time,
-                TestCaseUniqueID = testCaseUniqueId,
-                TestClassUniqueID = testClassUniqueId,
-                TestCollectionUniqueID = testCollectionUniqueId,
-                TestMethodUniqueID = testMethodUniqueId,
+                TestCaseUniqueID = ids.CaseId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
+                TestMethodUniqueID = ids.MethodId,
                 TestsFailed = summary.Failed,
                 TestsNotRun = 0,
                 TestsSkipped = summary.Skipped,
@@ -244,107 +243,82 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         return summary;
     }
 
-    private RunSummary SendSkippedTestCase(
+    private async ValueTask<RunSummary> SendSkippedTestCase(
         IMessageBus messageBus,
         CancellationTokenSource cts,
-        string assemblyId,
-        string collectionId,
-        string? classId,
-        string? methodId,
-        string caseId)
+        MsgIds ids)
     {
-        var testUniqueId = UniqueIDGenerator.ForTest(caseId, 0);
+        var testUniqueId = UniqueIDGenerator.ForTest(ids.CaseId, 0);
+        await SendSkippedMessages(messageBus, cts, ids, testUniqueId, this.TestCaseDisplayName, this.Traits, this.SkipReason!);
+        return new RunSummary { Total = 1, Skipped = 1 };
+    }
+
+    private static async ValueTask SendSkippedMessages(
+        IMessageBus messageBus,
+        CancellationTokenSource cts,
+        MsgIds ids,
+        string testUniqueId,
+        string displayName,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>> traits,
+        string reason)
+    {
         var now = DateTimeOffset.UtcNow;
 
         if (!messageBus.QueueMessage(new TestStarting
             {
-                AssemblyUniqueID = assemblyId,
+                AssemblyUniqueID = ids.AssemblyId,
                 Explicit = false,
                 StartTime = now,
-                TestCaseUniqueID = caseId,
-                TestClassUniqueID = classId,
-                TestCollectionUniqueID = collectionId,
-                TestDisplayName = this.TestCaseDisplayName,
-                TestMethodUniqueID = methodId,
+                TestCaseUniqueID = ids.CaseId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
+                TestDisplayName = displayName,
+                TestMethodUniqueID = ids.MethodId,
                 TestUniqueID = testUniqueId,
                 Timeout = 0,
-                Traits = this.Traits,
+                Traits = traits,
             }))
         {
-            cts.Cancel();
+            await cts.CancelAsync();
         }
 
         if (!messageBus.QueueMessage(new TestSkipped
             {
-                AssemblyUniqueID = assemblyId,
+                AssemblyUniqueID = ids.AssemblyId,
                 ExecutionTime = 0m,
                 FinishTime = now,
                 Output = string.Empty,
-                Reason = this.SkipReason!,
-                TestCaseUniqueID = caseId,
-                TestClassUniqueID = classId,
-                TestCollectionUniqueID = collectionId,
-                TestMethodUniqueID = methodId,
+                Reason = reason,
+                TestCaseUniqueID = ids.CaseId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
+                TestMethodUniqueID = ids.MethodId,
                 TestUniqueID = testUniqueId,
                 Warnings = null,
             }))
         {
-            cts.Cancel();
+            await cts.CancelAsync();
         }
 
         if (!messageBus.QueueMessage(new TestFinished
             {
-                AssemblyUniqueID = assemblyId,
-                Attachments = EmptyAttachments,
+                AssemblyUniqueID = ids.AssemblyId,
+                Attachments = FrozenDictionary<string, TestAttachment>.Empty,
                 ExecutionTime = 0m,
                 FinishTime = now,
                 Output = string.Empty,
-                TestCaseUniqueID = caseId,
-                TestClassUniqueID = classId,
-                TestCollectionUniqueID = collectionId,
-                TestMethodUniqueID = methodId,
+                TestCaseUniqueID = ids.CaseId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
+                TestMethodUniqueID = ids.MethodId,
                 TestUniqueID = testUniqueId,
                 Warnings = null,
             }))
         {
-            cts.Cancel();
+            await cts.CancelAsync();
         }
-
-        return new RunSummary { Total = 1, Skipped = 1 };
     }
 
-    private async ValueTask<RunSummary> RunDelayEnumerated(
-        IMessageBus messageBus,
-        object?[] constructorArguments,
-        CancellationTokenSource cts,
-        string assemblyId,
-        string collectionId,
-        string? classId,
-        string? methodId,
-        string caseId)
-    {
-        var summary = new RunSummary();
-        await using var disposalTracker = new DisposalTracker();
-
-        foreach (var dataAttr in this.TestMethod.DataAttributes)
-        {
-            var rows = await dataAttr.GetData(this.TestMethod.Method, disposalTracker);
-            foreach (var row in rows)
-            {
-                var args = row.GetData();
-                var rowSummary = await this.RunWithArguments(messageBus, constructorArguments, args, cts,
-                    assemblyId, collectionId, classId, methodId, caseId);
-                summary.Total += rowSummary.Total;
-                summary.Failed += rowSummary.Failed;
-                summary.Skipped += rowSummary.Skipped;
-                summary.Time += rowSummary.Time;
-            }
-        }
-
-        return summary;
-    }
-
-    // Bundles the five IDs that appear in every xunit message, reducing parameter noise.
     private readonly record struct MsgIds(
         string AssemblyId,
         string CollectionId,
@@ -400,7 +374,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         _ = messageBus.QueueMessage(new TestFinished
         {
             AssemblyUniqueID = ids.AssemblyId,
-            Attachments = EmptyAttachments,
+            Attachments = FrozenDictionary<string, TestAttachment>.Empty,
             ExecutionTime = elapsed,
             FinishTime = now,
             Output = string.Empty,
@@ -413,26 +387,64 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         });
     }
 
+    private async ValueTask<RunSummary> RunDelayEnumerated(
+        IMessageBus messageBus,
+        object?[] constructorArguments,
+        CancellationTokenSource cts,
+        MsgIds ids)
+    {
+        var summary = new RunSummary();
+        await using var disposalTracker = new DisposalTracker();
+
+        foreach (var dataAttr in this.TestMethod.DataAttributes)
+        {
+            var rows = await dataAttr.GetData(this.TestMethod.Method, disposalTracker);
+            foreach (var row in rows)
+            {
+                var args = row.GetData();
+                summary.Aggregate(await this.RunWithArguments(messageBus, constructorArguments, args, cts, ids));
+            }
+        }
+
+        return summary;
+    }
+
+    private static async ValueTask<(Exception? failure, decimal elapsedSeconds)> InvokeMethod(
+        object instance, MethodInfo method)
+    {
+        var sw = Stopwatch.StartNew();
+        Exception? failure = null;
+        try
+        {
+            var result = method.Invoke(instance, null);
+            if (result is Task task)
+            {
+                await task;
+            }
+        }
+        catch (Exception ex)
+        {
+            failure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
+        }
+
+        sw.Stop();
+        return (failure, (decimal)sw.Elapsed.TotalSeconds);
+    }
+
     private async ValueTask<RunSummary> RunWithArguments(
         IMessageBus messageBus,
         object?[] constructorArguments,
         object?[]? methodArguments,
         CancellationTokenSource cts,
-        string assemblyId,
-        string collectionId,
-        string? classId,
-        string? methodId,
-        string caseId)
+        MsgIds ids)
     {
         var summary = new RunSummary();
-        var ids = new MsgIds(assemblyId, collectionId, classId, methodId, caseId);
 
         // Instantiate test class using constructor arguments provided by xUnit (resolved fixtures)
         var testClassInstance = constructorArguments.Length == 0
             ? Activator.CreateInstance(this.TestClass.Class)!
             : Activator.CreateInstance(this.TestClass.Class, constructorArguments)!;
 
-        // Discover [Background] and [Teardown] methods
         var allMethods = testClassInstance.GetType().GetMethods(
             BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
         var backgroundMethods = allMethods.Where(m => m.GetCustomAttribute<BackgroundAttribute>() != null).ToList();
@@ -446,12 +458,10 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                 offenders.Add(nameof(BackgroundAttribute));
             }
 
-
             if (teardownMethods.Count > 1)
             {
                 offenders.Add(nameof(TeardownAttribute));
             }
-
 
             var which = string.Join(" and ", offenders.Select(o => $"[{o}]"));
             var msg = $"Multiple {which} methods found. Only one is allowed per class.";
@@ -473,26 +483,9 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
             if (backgroundMethod != null)
             {
-                var bgSw = Stopwatch.StartNew();
-                Exception? bgFailure = null;
-                try
-                {
-                    var bgResult = backgroundMethod.Invoke(testClassInstance, null);
-                    if (bgResult is Task bgTask)
-                    {
-                        await bgTask;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    bgFailure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
-                }
-
-                bgSw.Stop();
-
+                var (bgFailure, bgElapsed) = await InvokeMethod(testClassInstance, backgroundMethod);
                 if (bgFailure != null)
                 {
-                    var bgElapsed = (decimal)bgSw.Elapsed.TotalSeconds;
                     this.ReportSyntheticFailure(messageBus, ids, "(Background)", stepIndex: 0, bgFailure, bgElapsed);
                     summary.Time += bgElapsed;
                     summary.Failed++;
@@ -528,7 +521,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     await scenarioTask;
                 }
 
-                var mainSteps = Scenario.TestDefinitions.OrderBy(td => td.index).ToList();
+                var mainSteps = Scenario.TestDefinitions.ToList();
                 mainStepCount = mainSteps.Count;
                 summary.Aggregate(await this.RunStepLoop(mainSteps, stepIndexOffset: 0, messageBus, cts, ids));
             }
@@ -542,26 +535,9 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
                 try
                 {
-                    Exception? tdFailure = null;
-                    var tdSw = Stopwatch.StartNew();
-                    try
-                    {
-                        var tdResult = teardownMethod.Invoke(testClassInstance, null);
-                        if (tdResult is Task tdTask)
-                        {
-                            await tdTask;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        tdFailure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
-                    }
-
-                    tdSw.Stop();
-
+                    var (tdFailure, tdElapsed) = await InvokeMethod(testClassInstance, teardownMethod);
                     if (tdFailure != null)
                     {
-                        var tdElapsed = (decimal)tdSw.Elapsed.TotalSeconds;
                         this.ReportSyntheticFailure(messageBus, ids, "(Teardown)", teardownOffset, tdFailure, tdElapsed);
                         summary.Time += tdElapsed;
                         summary.Failed++;
@@ -570,7 +546,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     }
                     else
                     {
-                        var tdSteps = Scenario.TestDefinitions.OrderBy(td => td.index).ToList();
+                        var tdSteps = Scenario.TestDefinitions.ToList();
                         summary.Aggregate(await this.RunStepLoop(tdSteps, stepIndexOffset: teardownOffset, messageBus, cts, ids));
                     }
                 }
@@ -609,7 +585,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             if (stopped)
             {
                 summary.Skipped++;
-                SendSkippedStep(messageBus, cts, step, testUniqueId, ids, "Previous step failed");
+                await SendSkippedMessages(messageBus, cts, ids, testUniqueId, step.TestDisplayName, step.Traits, "Previous step failed");
                 continue;
             }
 
@@ -713,7 +689,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             if (!messageBus.QueueMessage(new TestFinished
                 {
                     AssemblyUniqueID = ids.AssemblyId,
-                    Attachments = EmptyAttachments,
+                    Attachments = FrozenDictionary<string, TestAttachment>.Empty,
                     ExecutionTime = elapsed,
                     FinishTime = finish,
                     Output = string.Empty,
@@ -730,70 +706,5 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         }
 
         return summary;
-    }
-
-    private static void SendSkippedStep(
-        IMessageBus messageBus,
-        CancellationTokenSource cts,
-        ScenarioStep step,
-        string testUniqueId,
-        MsgIds ids,
-        string reason)
-    {
-        var now = DateTimeOffset.UtcNow;
-
-        if (!messageBus.QueueMessage(new TestStarting
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                Explicit = false,
-                StartTime = now,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestDisplayName = step.TestDisplayName,
-                TestMethodUniqueID = ids.MethodId,
-                TestUniqueID = testUniqueId,
-                Timeout = 0,
-                Traits = step.Traits,
-            }))
-        {
-            cts.Cancel();
-        }
-
-        if (!messageBus.QueueMessage(new TestSkipped
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                ExecutionTime = 0m,
-                FinishTime = now,
-                Output = string.Empty,
-                Reason = reason,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestMethodUniqueID = ids.MethodId,
-                TestUniqueID = testUniqueId,
-                Warnings = null,
-            }))
-        {
-            cts.Cancel();
-        }
-
-        if (!messageBus.QueueMessage(new TestFinished
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                Attachments = EmptyAttachments,
-                ExecutionTime = 0m,
-                FinishTime = now,
-                Output = string.Empty,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestMethodUniqueID = ids.MethodId,
-                TestUniqueID = testUniqueId,
-                Warnings = null,
-            }))
-        {
-            cts.Cancel();
-        }
     }
 }
