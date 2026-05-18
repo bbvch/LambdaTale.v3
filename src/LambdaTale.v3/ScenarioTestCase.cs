@@ -13,13 +13,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     private string? testCaseDisplayName;
     private bool isDelayEnumerated;
     private bool skipTestWithoutData;
-    private bool @explicit;
-    private Type[]? skipExceptions;
-    private Type? skipType;
-    private string? skipUnless;
-    private string? skipWhen;
-    private int timeout;
-    private string[]? testMethodParameterTypesVSTest;
+    private bool isExplicit;
 
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase() { }
@@ -33,7 +27,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         int? sourceLineNumber = null,
         bool isDelayEnumerated = false,
         bool skipTestWithoutData = false,
-        bool @explicit = false,
+        bool isExplicit = false,
         Type[]? skipExceptions = null,
         Type? skipType = null,
         string? skipUnless = null,
@@ -48,12 +42,12 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         this.SourceLineNumber = sourceLineNumber;
         this.isDelayEnumerated = isDelayEnumerated;
         this.skipTestWithoutData = skipTestWithoutData;
-        this.@explicit = @explicit;
-        this.skipExceptions = skipExceptions;
-        this.skipType = skipType;
-        this.skipUnless = skipUnless;
-        this.skipWhen = skipWhen;
-        this.timeout = timeout;
+        this.isExplicit = isExplicit;
+        this.SkipExceptions = skipExceptions;
+        this.SkipType = skipType;
+        this.SkipUnless = skipUnless;
+        this.SkipWhen = skipWhen;
+        this.Timeout = timeout;
     }
 
     public IXunitTestMethod TestMethod
@@ -107,8 +101,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     public string TestMethodName => this.TestMethod.MethodName;
 
     public string[] TestMethodParameterTypesVSTest =>
-        this.testMethodParameterTypesVSTest ??=
-            this.TestMethod.Parameters.Select(p => p.ParameterType.FullName ?? p.ParameterType.Name).ToArray();
+        field ??=
+            [.. this.TestMethod.Parameters.Select(p => p.ParameterType.FullName ?? p.ParameterType.Name)];
 
     public string TestMethodReturnTypeVSTest => this.TestMethod.ReturnType.FullName ?? this.TestMethod.ReturnType.Name;
 
@@ -118,11 +112,15 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             : null;
 
     public string? SkipReason { get; private set; }
-    public Type? SkipType => this.skipType;
-    public string? SkipUnless => this.skipUnless;
-    public string? SkipWhen => this.skipWhen;
-    public Type[]? SkipExceptions => this.skipExceptions;
-    public int Timeout => this.timeout;
+    public Type? SkipType { get; private set; }
+
+    public string? SkipUnless { get; private set; }
+
+    public string? SkipWhen { get; private set; }
+
+    public Type[]? SkipExceptions { get; private set; }
+
+    public int Timeout { get; private set; }
 
     public string? SourceFilePath { get; private set; }
     public int? SourceLineNumber { get; private set; }
@@ -136,7 +134,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     ITestClass ITestCase.TestClass => this.TestClass;
     ITestCollection ITestCase.TestCollection => this.TestCollection;
     ITestMethod ITestCase.TestMethod => this.TestMethod;
-    bool ITestCaseMetadata.Explicit => this.@explicit;
+    bool ITestCaseMetadata.Explicit => this.isExplicit;
     string? ITestCaseMetadata.SkipReason => this.SkipReason;
     int? ITestCaseMetadata.TestClassMetadataToken => this.TestClassMetadataToken;
     string? ITestCaseMetadata.TestClassNamespace => this.TestMethod.TestClass.Class.Namespace;
@@ -155,13 +153,13 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         info.AddValue("sl", this.SourceLineNumber);
         info.AddValue("de", this.isDelayEnumerated);
         info.AddValue("swd", this.skipTestWithoutData);
-        info.AddValue("ex", this.@explicit);
-        var skipExc = this.skipExceptions?.Select(t => t.AssemblyQualifiedName ?? t.FullName ?? t.Name).ToArray();
+        info.AddValue("ex", this.isExplicit);
+        var skipExc = this.SkipExceptions?.Select(t => t.AssemblyQualifiedName ?? t.FullName ?? t.Name).ToArray();
         info.AddValue("sx", skipExc);
-        info.AddValue("st", this.skipType?.AssemblyQualifiedName ?? this.skipType?.FullName);
-        info.AddValue("su", this.skipUnless);
-        info.AddValue("sw", this.skipWhen);
-        info.AddValue("to", this.timeout);
+        info.AddValue("st", this.SkipType?.AssemblyQualifiedName ?? this.SkipType?.FullName);
+        info.AddValue("su", this.SkipUnless);
+        info.AddValue("sw", this.SkipWhen);
+        info.AddValue("to", this.Timeout);
         var argc = this.TestMethodArguments?.Length ?? -1;
         info.AddValue("argc", argc);
         if (this.TestMethodArguments is not null)
@@ -182,14 +180,14 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         this.SourceLineNumber = info.GetValue<int?>("sl");
         this.isDelayEnumerated = info.GetValue<bool>("de");
         this.skipTestWithoutData = info.GetValue<bool>("swd");
-        this.@explicit = info.GetValue<bool>("ex");
+        this.isExplicit = info.GetValue<bool>("ex");
         var skipExc = info.GetValue<string[]?>("sx");
-        this.skipExceptions = skipExc?.Select(name => Type.GetType(name, throwOnError: true)!).ToArray();
+        this.SkipExceptions = skipExc?.Select(name => Type.GetType(name, throwOnError: true)!).ToArray();
         var skipTypeName = info.GetValue<string?>("st");
-        this.skipType = skipTypeName is null ? null : Type.GetType(skipTypeName, throwOnError: true);
-        this.skipUnless = info.GetValue<string?>("su");
-        this.skipWhen = info.GetValue<string?>("sw");
-        this.timeout = info.GetValue<int>("to");
+        this.SkipType = skipTypeName is null ? null : Type.GetType(skipTypeName, throwOnError: true);
+        this.SkipUnless = info.GetValue<string?>("su");
+        this.SkipWhen = info.GetValue<string?>("sw");
+        this.Timeout = info.GetValue<int>("to");
         var argc = info.GetValue<int>("argc");
         if (argc >= 0)
         {
@@ -216,7 +214,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             this.UniqueID);
         RunSummary summary;
 
-        var explicitSkipReason = (this.@explicit, explicitOption) switch
+        var explicitSkipReason = (@explicit: this.isExplicit, explicitOption) switch
         {
             (true, ExplicitOption.Off) => "Test is marked Explicit and was not selected to run",
             (false, ExplicitOption.Only) => "Only explicit tests were selected to run",
@@ -228,7 +226,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         if (!messageBus.QueueMessage(new TestCaseStarting
             {
                 AssemblyUniqueID = ids.AssemblyId,
-                Explicit = this.@explicit,
+                Explicit = this.isExplicit,
                 SkipReason = effectiveSkipReason,
                 SourceFilePath = this.SourceFilePath,
                 SourceLineNumber = this.SourceLineNumber,
@@ -262,13 +260,13 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                 ? this.RunDelayEnumerated(messageBus, constructorArguments, cancellationTokenSource, ids).AsTask()
                 : this.RunWithArguments(messageBus, constructorArguments, this.TestMethodArguments, cancellationTokenSource, ids).AsTask();
 
-            if (this.timeout > 0)
+            if (this.Timeout > 0)
             {
-                var winner = await Task.WhenAny(dispatch, Task.Delay(this.timeout));
+                var winner = await Task.WhenAny(dispatch, Task.Delay(this.Timeout));
                 if (winner != dispatch)
                 {
-                    var elapsed = this.timeout / 1000m;
-                    var timeoutEx = new TimeoutException($"Test exceeded timeout of {this.timeout}ms");
+                    var elapsed = this.Timeout / 1000m;
+                    var timeoutEx = new TimeoutException($"Test exceeded timeout of {this.Timeout}ms");
                     this.ReportSyntheticFailure(messageBus, ids, "(Timeout)", stepIndex: 0, timeoutEx, elapsed);
                     summary = new RunSummary { Total = 1, Failed = 1, Time = elapsed };
                 }
@@ -310,7 +308,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         string skipReason)
     {
         var testUniqueId = UniqueIDGenerator.ForTest(ids.CaseId, 0);
-        await SendSkippedMessages(messageBus, cts, ids, testUniqueId, this.TestCaseDisplayName, this.Traits, this.@explicit, this.timeout, skipReason);
+        await SendSkippedMessages(messageBus, cts, ids, testUniqueId, this.TestCaseDisplayName, this.Traits, this.isExplicit, this.Timeout, skipReason);
         return new RunSummary { Total = 1, Skipped = 1 };
     }
 
@@ -404,7 +402,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         _ = messageBus.QueueMessage(new TestStarting
         {
             AssemblyUniqueID = ids.AssemblyId,
-            Explicit = this.@explicit,
+            Explicit = this.isExplicit,
             StartTime = now,
             TestCaseUniqueID = ids.CaseId,
             TestClassUniqueID = ids.ClassId,
@@ -412,7 +410,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             TestDisplayName = displayName,
             TestMethodUniqueID = ids.MethodId,
             TestUniqueID = uniqueId,
-            Timeout = this.timeout,
+            Timeout = this.Timeout,
             Traits = this.Traits,
         });
         var (types, messages, stackTraces, indices, cause) = ExceptionUtility.ExtractMetadata(failure);
@@ -473,29 +471,29 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     }
 
     private bool IsSkipException(Exception ex) =>
-        this.skipExceptions is { } types && types.Any(t => t.IsInstanceOfType(ex));
+        this.SkipExceptions is { } types && types.Any(t => t.IsInstanceOfType(ex));
 
     private string? EvaluateConditionalSkip()
     {
-        if (this.skipUnless is null && this.skipWhen is null)
+        if (this.SkipUnless is null && this.SkipWhen is null)
         {
             return null;
         }
 
-        if (this.skipUnless is not null && this.skipWhen is not null)
+        if (this.SkipUnless is not null && this.SkipWhen is not null)
         {
             throw new InvalidOperationException("Only one of SkipUnless or SkipWhen may be set.");
         }
 
-        var propertyName = this.skipUnless ?? this.skipWhen!;
-        var hostType = this.skipType ?? this.TestClass.Class;
+        var propertyName = this.SkipUnless ?? this.SkipWhen!;
+        var hostType = this.SkipType ?? this.TestClass.Class;
         var property = hostType.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException(
-                $"Could not find public static property '{propertyName}' on type '{hostType.FullName}'.");
+                       ?? throw new InvalidOperationException(
+                           $"Could not find public static property '{propertyName}' on type '{hostType.FullName}'.");
         var value = property.GetValue(obj: null);
         var truthy = value is true;
 
-        var shouldSkip = this.skipUnless is not null ? !truthy : truthy;
+        var shouldSkip = this.SkipUnless is not null ? !truthy : truthy;
         if (!shouldSkip)
         {
             return null;
@@ -505,7 +503,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     }
 
     private static async ValueTask<(Exception? failure, decimal elapsedSeconds)> InvokeMethod(
-        object instance, MethodInfo method)
+        object instance,
+        MethodInfo method)
     {
         var sw = Stopwatch.StartNew();
         Exception? failure = null;
@@ -586,7 +585,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     if (this.IsSkipException(bgFailure))
                     {
                         await SendSkippedMessages(messageBus, cts, ids,
-                            UniqueIDGenerator.ForTest(ids.CaseId, 0), "(Background)", this.Traits, this.@explicit, this.timeout, bgFailure.Message);
+                            UniqueIDGenerator.ForTest(ids.CaseId, 0), "(Background)", this.Traits, this.isExplicit, this.Timeout, bgFailure.Message);
                         summary.Skipped++;
                     }
                     else
@@ -648,7 +647,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                         if (this.IsSkipException(tdFailure))
                         {
                             await SendSkippedMessages(messageBus, cts, ids,
-                                UniqueIDGenerator.ForTest(ids.CaseId, teardownOffset), "(Teardown)", this.Traits, this.@explicit, this.timeout, tdFailure.Message);
+                                UniqueIDGenerator.ForTest(ids.CaseId, teardownOffset), "(Teardown)", this.Traits, this.isExplicit, this.Timeout, tdFailure.Message);
                             summary.Skipped++;
                         }
                         else
@@ -700,7 +699,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             if (stopped)
             {
                 summary.Skipped++;
-                await SendSkippedMessages(messageBus, cts, ids, testUniqueId, step.TestDisplayName, step.Traits, this.@explicit, this.timeout, "Previous step failed");
+                await SendSkippedMessages(messageBus, cts, ids, testUniqueId, step.TestDisplayName, step.Traits, this.isExplicit, this.Timeout, "Previous step failed");
                 continue;
             }
 
@@ -708,7 +707,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             if (!messageBus.QueueMessage(new TestStarting
                 {
                     AssemblyUniqueID = ids.AssemblyId,
-                    Explicit = this.@explicit,
+                    Explicit = this.isExplicit,
                     StartTime = start,
                     TestCaseUniqueID = ids.CaseId,
                     TestClassUniqueID = ids.ClassId,
@@ -716,7 +715,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     TestDisplayName = step.TestDisplayName,
                     TestMethodUniqueID = ids.MethodId,
                     TestUniqueID = testUniqueId,
-                    Timeout = this.timeout,
+                    Timeout = this.Timeout,
                     Traits = step.Traits,
                 }))
             {

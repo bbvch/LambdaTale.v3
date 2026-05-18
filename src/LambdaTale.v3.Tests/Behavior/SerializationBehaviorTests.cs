@@ -20,7 +20,7 @@ public class SerializationBehaviorTests
             sourceLineNumber: 123,
             isDelayEnumerated: true,
             skipTestWithoutData: true,
-            @explicit: true,
+            isExplicit: true,
             skipExceptions: [typeof(InvalidOperationException), typeof(ArgumentException)],
             skipType: typeof(string),
             skipUnless: "PropX",

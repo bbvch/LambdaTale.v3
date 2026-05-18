@@ -28,7 +28,7 @@ internal static class ScenarioTestRunner
             testMethod,
             testCaseDisplayName: testCaseDisplayName,
             skipReason: skipReason,
-            @explicit: @explicit,
+            isExplicit: @explicit,
             skipExceptions: skipExceptions,
             skipType: skipType,
             skipUnless: skipUnless,

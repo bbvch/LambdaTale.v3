@@ -3,38 +3,25 @@ using Xunit.v3;
 
 namespace LambdaTale.v3;
 
-public sealed class ScenarioStep : IXunitTest
+public sealed class ScenarioStep(
+    ScenarioTestCase parentTestCase,
+    int stepIndex,
+    string tale,
+    object?[]? rowArgs) : IXunitTest
 {
-    public ScenarioStep(
-        ScenarioTestCase parentTestCase,
-        int stepIndex,
-        string tale,
-        object?[]? rowArgs)
-    {
-        this.ParentTestCase = parentTestCase;
-        this.StepIndex = stepIndex;
-        this.Tale = tale;
-        this.rowArgs = rowArgs;
-    }
-
-    private readonly ScenarioTestCase ParentTestCase;
-    private readonly int StepIndex;
-    private readonly string Tale;
-    private readonly object?[]? rowArgs;
-
-    public ITestCase TestCase => this.ParentTestCase;
+    public ITestCase TestCase => parentTestCase;
 
     public string TestDisplayName
     {
         get
         {
-            if (this.rowArgs is null || this.rowArgs.Length == 0)
+            if (rowArgs is null || rowArgs.Length == 0)
             {
-                return $"[{this.StepIndex}] {this.Tale}";
+                return $"[{stepIndex}] {tale}";
             }
 
-            var formatted = string.Join(", ", this.rowArgs.Select(FormatArg));
-            return $"({formatted}) [{this.StepIndex}] {this.Tale}";
+            var formatted = string.Join(", ", rowArgs.Select(FormatArg));
+            return $"({formatted}) [{stepIndex}] {tale}";
         }
     }
 
@@ -45,21 +32,21 @@ public sealed class ScenarioStep : IXunitTest
         _ => arg.ToString() ?? "null",
     };
 
-    public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.ParentTestCase.Traits;
+    public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => parentTestCase.Traits;
 
     public string UniqueID
     {
         get
         {
-            if (this.rowArgs is null || this.rowArgs.Length == 0)
+            if (rowArgs is null || rowArgs.Length == 0)
             {
-                return UniqueIDGenerator.ForTest(this.ParentTestCase.UniqueID, this.StepIndex);
+                return UniqueIDGenerator.ForTest(parentTestCase.UniqueID, stepIndex);
             }
 
             using var g = new UniqueIDGenerator();
-            g.Add(this.ParentTestCase.UniqueID);
-            g.Add(this.StepIndex.ToString());
-            foreach (var arg in this.rowArgs)
+            g.Add(parentTestCase.UniqueID);
+            g.Add(stepIndex.ToString());
+            foreach (var arg in rowArgs)
             {
                 g.Add(SerializationHelper.Instance.Serialize(arg));
             }
@@ -68,13 +55,13 @@ public sealed class ScenarioStep : IXunitTest
         }
     }
 
-    IXunitTestCase IXunitTest.TestCase => this.ParentTestCase;
+    IXunitTestCase IXunitTest.TestCase => parentTestCase;
     bool IXunitTest.Explicit => false;
     string? IXunitTest.SkipReason => null;
     Type? IXunitTest.SkipType => null;
     string? IXunitTest.SkipUnless => null;
     string? IXunitTest.SkipWhen => null;
-    IXunitTestMethod IXunitTest.TestMethod => this.ParentTestCase.TestMethod;
-    object?[] IXunitTest.TestMethodArguments => this.rowArgs ?? [];
+    IXunitTestMethod IXunitTest.TestMethod => parentTestCase.TestMethod;
+    object?[] IXunitTest.TestMethodArguments => rowArgs ?? [];
     int IXunitTest.Timeout => 0;
 }

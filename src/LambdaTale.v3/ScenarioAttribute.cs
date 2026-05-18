@@ -15,7 +15,7 @@ public sealed class ScenarioAttribute(
 }
 
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class BackgroundAttribute : Attribute { }
+public sealed class BackgroundAttribute : Attribute;
 
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class TeardownAttribute : Attribute { }
+public sealed class TeardownAttribute : Attribute;

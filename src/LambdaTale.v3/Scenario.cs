@@ -17,14 +17,14 @@ public static class Scenario
     public static void Add(string tale, Action lambda, OnError onError = OnError.Stop)
     {
         var context = Tests.Value ?? MissingContext();
-        context.Add(new ScenarioTestDefinition(tale, new TaleBody.SynchronousTaleBody(lambda), LambdaIndex.Value, onError));
+        context.Add(new ScenarioTestDefinition(tale, new TaleBody.SynchronousTaleBody(lambda), onError));
         LambdaIndex.Value++;
     }
 
     public static void Add(string tale, Func<Task> body, OnError onError = OnError.Stop)
     {
         var context = Tests.Value ?? MissingContext();
-        context.Add(new ScenarioTestDefinition(tale, new TaleBody.AsynchronousTaleBody(body), LambdaIndex.Value, onError));
+        context.Add(new ScenarioTestDefinition(tale, new TaleBody.AsynchronousTaleBody(body), onError));
         LambdaIndex.Value++;
     }
 
@@ -41,7 +41,7 @@ public static class Scenario
     }
 }
 
-public record ScenarioTestDefinition(string Tale, TaleBody Lambda, int Index, OnError OnError = OnError.Stop);
+public record ScenarioTestDefinition(string Tale, TaleBody Lambda, OnError OnError = OnError.Stop);
 
 public abstract record TaleBody
 {
