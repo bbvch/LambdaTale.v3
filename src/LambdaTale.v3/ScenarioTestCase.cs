@@ -223,32 +223,29 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         var conditionalSkipReason = this.EvaluateConditionalSkip();
         var effectiveSkipReason = this.SkipReason ?? conditionalSkipReason ?? explicitSkipReason;
 
-        if (!messageBus.QueueMessage(new TestCaseStarting
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                Explicit = this.isExplicit,
-                SkipReason = effectiveSkipReason,
-                SourceFilePath = this.SourceFilePath,
-                SourceLineNumber = this.SourceLineNumber,
-                TestCaseDisplayName = this.TestCaseDisplayName,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassMetadataToken = this.TestClassMetadataToken,
-                TestClassName = this.TestClassName,
-                TestClassNamespace = this.TestMethod.TestClass.Class.Namespace,
-                TestClassSimpleName = this.TestClassSimpleName,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestMethodArity = this.TestMethodArity,
-                TestMethodMetadataToken = this.TestMethodMetadataToken,
-                TestMethodName = this.TestMethodName,
-                TestMethodParameterTypesVSTest = this.TestMethodParameterTypesVSTest,
-                TestMethodReturnTypeVSTest = this.TestMethodReturnTypeVSTest,
-                TestMethodUniqueID = ids.MethodId,
-                Traits = this.Traits,
-            }))
+        await QueueOrCancel(messageBus, new TestCaseStarting
         {
-            await cancellationTokenSource.CancelAsync();
-        }
+            AssemblyUniqueID = ids.AssemblyId,
+            Explicit = this.isExplicit,
+            SkipReason = effectiveSkipReason,
+            SourceFilePath = this.SourceFilePath,
+            SourceLineNumber = this.SourceLineNumber,
+            TestCaseDisplayName = this.TestCaseDisplayName,
+            TestCaseUniqueID = ids.CaseId,
+            TestClassMetadataToken = this.TestClassMetadataToken,
+            TestClassName = this.TestClassName,
+            TestClassNamespace = this.TestMethod.TestClass.Class.Namespace,
+            TestClassSimpleName = this.TestClassSimpleName,
+            TestClassUniqueID = ids.ClassId,
+            TestCollectionUniqueID = ids.CollectionId,
+            TestMethodArity = this.TestMethodArity,
+            TestMethodMetadataToken = this.TestMethodMetadataToken,
+            TestMethodName = this.TestMethodName,
+            TestMethodParameterTypesVSTest = this.TestMethodParameterTypesVSTest,
+            TestMethodReturnTypeVSTest = this.TestMethodReturnTypeVSTest,
+            TestMethodUniqueID = ids.MethodId,
+            Traits = this.Traits,
+        }, cancellationTokenSource);
 
         if (effectiveSkipReason is not null)
         {
@@ -267,7 +264,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                 {
                     var elapsed = this.Timeout / 1000m;
                     var timeoutEx = new TimeoutException($"Test exceeded timeout of {this.Timeout}ms");
-                    this.ReportSyntheticFailure(messageBus, ids, "(Timeout)", stepIndex: 0, timeoutEx, elapsed);
+                    await this.ReportSyntheticFailure(messageBus, cancellationTokenSource, ids, "(Timeout)", stepIndex: 0, timeoutEx, elapsed);
                     summary = new RunSummary { Total = 1, Failed = 1, Time = elapsed };
                 }
                 else
@@ -281,22 +278,19 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             }
         }
 
-        if (!messageBus.QueueMessage(new TestCaseFinished
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                ExecutionTime = summary.Time,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestMethodUniqueID = ids.MethodId,
-                TestsFailed = summary.Failed,
-                TestsNotRun = 0,
-                TestsSkipped = summary.Skipped,
-                TestsTotal = summary.Total,
-            }))
+        await QueueOrCancel(messageBus, new TestCaseFinished
         {
-            await cancellationTokenSource.CancelAsync();
-        }
+            AssemblyUniqueID = ids.AssemblyId,
+            ExecutionTime = summary.Time,
+            TestCaseUniqueID = ids.CaseId,
+            TestClassUniqueID = ids.ClassId,
+            TestCollectionUniqueID = ids.CollectionId,
+            TestMethodUniqueID = ids.MethodId,
+            TestsFailed = summary.Failed,
+            TestsNotRun = 0,
+            TestsSkipped = summary.Skipped,
+            TestsTotal = summary.Total,
+        }, cancellationTokenSource);
 
         return summary;
     }
@@ -308,76 +302,138 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         string skipReason)
     {
         var testUniqueId = UniqueIDGenerator.ForTest(ids.CaseId, 0);
-        await SendSkippedMessages(messageBus, cts, ids, testUniqueId, this.TestCaseDisplayName, this.Traits, this.isExplicit, this.Timeout, skipReason);
+        await this.EmitSynthetic(messageBus, cts, ids, testUniqueId, this.TestCaseDisplayName, this.Traits, elapsed: 0m, new StepOutcome.Skipped(skipReason));
         return new RunSummary { Total = 1, Skipped = 1 };
     }
 
-    private static async ValueTask SendSkippedMessages(
+    private abstract record StepOutcome
+    {
+        public sealed record Passed : StepOutcome;
+
+        public sealed record Skipped(string Reason) : StepOutcome;
+
+        public sealed record Failed(Exception Exception) : StepOutcome;
+    }
+
+    private ValueTask EmitStarting(
         IMessageBus messageBus,
         CancellationTokenSource cts,
         MsgIds ids,
         string testUniqueId,
         string displayName,
         IReadOnlyDictionary<string, IReadOnlyCollection<string>> traits,
-        bool @explicit,
-        int timeout,
-        string reason)
+        DateTimeOffset startTime) =>
+        QueueOrCancel(messageBus, new TestStarting
+        {
+            AssemblyUniqueID = ids.AssemblyId,
+            Explicit = this.isExplicit,
+            StartTime = startTime,
+            TestCaseUniqueID = ids.CaseId,
+            TestClassUniqueID = ids.ClassId,
+            TestCollectionUniqueID = ids.CollectionId,
+            TestDisplayName = displayName,
+            TestMethodUniqueID = ids.MethodId,
+            TestUniqueID = testUniqueId,
+            Timeout = this.Timeout,
+            Traits = traits,
+        }, cts);
+
+    private async ValueTask EmitOutcome(
+        IMessageBus messageBus,
+        CancellationTokenSource cts,
+        MsgIds ids,
+        string testUniqueId,
+        DateTimeOffset finishTime,
+        decimal elapsed,
+        StepOutcome outcome)
+    {
+        TestFailed MakeFailed(Exception ex)
+        {
+            var (types, messages, stackTraces, indices, cause) = ExceptionUtility.ExtractMetadata(ex);
+            return new TestFailed
+            {
+                AssemblyUniqueID = ids.AssemblyId,
+                Cause = cause,
+                ExceptionParentIndices = indices,
+                ExceptionTypes = types,
+                ExecutionTime = elapsed,
+                FinishTime = finishTime,
+                Messages = messages,
+                Output = string.Empty,
+                StackTraces = stackTraces,
+                TestCaseUniqueID = ids.CaseId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
+                TestMethodUniqueID = ids.MethodId,
+                TestUniqueID = testUniqueId,
+                Warnings = null,
+            };
+        }
+
+        IMessageSinkMessage verdict = outcome switch
+        {
+            StepOutcome.Passed => new TestPassed
+            {
+                AssemblyUniqueID = ids.AssemblyId,
+                ExecutionTime = elapsed,
+                FinishTime = finishTime,
+                Output = string.Empty,
+                TestCaseUniqueID = ids.CaseId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
+                TestMethodUniqueID = ids.MethodId,
+                TestUniqueID = testUniqueId,
+                Warnings = null,
+            },
+            StepOutcome.Skipped skipped => new TestSkipped
+            {
+                AssemblyUniqueID = ids.AssemblyId,
+                ExecutionTime = elapsed,
+                FinishTime = finishTime,
+                Output = string.Empty,
+                Reason = skipped.Reason,
+                TestCaseUniqueID = ids.CaseId,
+                TestClassUniqueID = ids.ClassId,
+                TestCollectionUniqueID = ids.CollectionId,
+                TestMethodUniqueID = ids.MethodId,
+                TestUniqueID = testUniqueId,
+                Warnings = null,
+            },
+            StepOutcome.Failed failed => MakeFailed(failed.Exception),
+            _ => throw new NotSupportedException($"Unknown outcome: {outcome.GetType()}"),
+        };
+
+        await QueueOrCancel(messageBus, verdict, cts);
+
+        await QueueOrCancel(messageBus, new TestFinished
+        {
+            AssemblyUniqueID = ids.AssemblyId,
+            Attachments = FrozenDictionary<string, TestAttachment>.Empty,
+            ExecutionTime = elapsed,
+            FinishTime = finishTime,
+            Output = string.Empty,
+            TestCaseUniqueID = ids.CaseId,
+            TestClassUniqueID = ids.ClassId,
+            TestCollectionUniqueID = ids.CollectionId,
+            TestMethodUniqueID = ids.MethodId,
+            TestUniqueID = testUniqueId,
+            Warnings = null,
+        }, cts);
+    }
+
+    private async ValueTask EmitSynthetic(
+        IMessageBus messageBus,
+        CancellationTokenSource cts,
+        MsgIds ids,
+        string testUniqueId,
+        string displayName,
+        IReadOnlyDictionary<string, IReadOnlyCollection<string>> traits,
+        decimal elapsed,
+        StepOutcome outcome)
     {
         var now = DateTimeOffset.UtcNow;
-
-        if (!messageBus.QueueMessage(new TestStarting
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                Explicit = @explicit,
-                StartTime = now,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestDisplayName = displayName,
-                TestMethodUniqueID = ids.MethodId,
-                TestUniqueID = testUniqueId,
-                Timeout = timeout,
-                Traits = traits,
-            }))
-        {
-            await cts.CancelAsync();
-        }
-
-        if (!messageBus.QueueMessage(new TestSkipped
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                ExecutionTime = 0m,
-                FinishTime = now,
-                Output = string.Empty,
-                Reason = reason,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestMethodUniqueID = ids.MethodId,
-                TestUniqueID = testUniqueId,
-                Warnings = null,
-            }))
-        {
-            await cts.CancelAsync();
-        }
-
-        if (!messageBus.QueueMessage(new TestFinished
-            {
-                AssemblyUniqueID = ids.AssemblyId,
-                Attachments = FrozenDictionary<string, TestAttachment>.Empty,
-                ExecutionTime = 0m,
-                FinishTime = now,
-                Output = string.Empty,
-                TestCaseUniqueID = ids.CaseId,
-                TestClassUniqueID = ids.ClassId,
-                TestCollectionUniqueID = ids.CollectionId,
-                TestMethodUniqueID = ids.MethodId,
-                TestUniqueID = testUniqueId,
-                Warnings = null,
-            }))
-        {
-            await cts.CancelAsync();
-        }
+        await EmitStarting(messageBus, cts, ids, testUniqueId, displayName, traits, now);
+        await EmitOutcome(messageBus, cts, ids, testUniqueId, now, elapsed, outcome);
     }
 
     private readonly record struct MsgIds(
@@ -387,66 +443,27 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         string? MethodId,
         string CaseId);
 
-    // Reports a synthetic TestStarting / TestFailed / TestFinished triple for a phase that
-    // failed before any steps were registered (config error, background throw, teardown throw).
-    private void ReportSyntheticFailure(
+    // Queues a message and cancels the run if the bus signals it should stop.
+    private static async ValueTask QueueOrCancel(IMessageBus messageBus, IMessageSinkMessage message, CancellationTokenSource cts)
+    {
+        if (!messageBus.QueueMessage(message))
+        {
+            await cts.CancelAsync();
+        }
+    }
+
+    // Reports a synthetic failure for a phase that failed outside the normal step loop
+    // (config error, timeout, background throw, teardown throw).
+    private ValueTask ReportSyntheticFailure(
         IMessageBus messageBus,
+        CancellationTokenSource cts,
         MsgIds ids,
         string displayName,
         int stepIndex,
         Exception failure,
-        decimal elapsed)
-    {
-        var uniqueId = UniqueIDGenerator.ForTest(ids.CaseId, stepIndex);
-        var now = DateTimeOffset.UtcNow;
-        _ = messageBus.QueueMessage(new TestStarting
-        {
-            AssemblyUniqueID = ids.AssemblyId,
-            Explicit = this.isExplicit,
-            StartTime = now,
-            TestCaseUniqueID = ids.CaseId,
-            TestClassUniqueID = ids.ClassId,
-            TestCollectionUniqueID = ids.CollectionId,
-            TestDisplayName = displayName,
-            TestMethodUniqueID = ids.MethodId,
-            TestUniqueID = uniqueId,
-            Timeout = this.Timeout,
-            Traits = this.Traits,
-        });
-        var (types, messages, stackTraces, indices, cause) = ExceptionUtility.ExtractMetadata(failure);
-        _ = messageBus.QueueMessage(new TestFailed
-        {
-            AssemblyUniqueID = ids.AssemblyId,
-            Cause = cause,
-            ExceptionParentIndices = indices,
-            ExceptionTypes = types,
-            ExecutionTime = elapsed,
-            FinishTime = now,
-            Messages = messages,
-            Output = string.Empty,
-            StackTraces = stackTraces,
-            TestCaseUniqueID = ids.CaseId,
-            TestClassUniqueID = ids.ClassId,
-            TestCollectionUniqueID = ids.CollectionId,
-            TestMethodUniqueID = ids.MethodId,
-            TestUniqueID = uniqueId,
-            Warnings = null,
-        });
-        _ = messageBus.QueueMessage(new TestFinished
-        {
-            AssemblyUniqueID = ids.AssemblyId,
-            Attachments = FrozenDictionary<string, TestAttachment>.Empty,
-            ExecutionTime = elapsed,
-            FinishTime = now,
-            Output = string.Empty,
-            TestCaseUniqueID = ids.CaseId,
-            TestClassUniqueID = ids.ClassId,
-            TestCollectionUniqueID = ids.CollectionId,
-            TestMethodUniqueID = ids.MethodId,
-            TestUniqueID = uniqueId,
-            Warnings = null,
-        });
-    }
+        decimal elapsed) =>
+        EmitSynthetic(messageBus, cts, ids, UniqueIDGenerator.ForTest(ids.CaseId, stepIndex),
+            displayName, this.Traits, elapsed, new StepOutcome.Failed(failure));
 
     private async ValueTask<RunSummary> RunDelayEnumerated(
         IMessageBus messageBus,
@@ -559,7 +576,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
             var which = string.Join(" and ", offenders.Select(o => $"[{o}]"));
             var msg = $"Multiple {which} methods found. Only one is allowed per class.";
-            this.ReportSyntheticFailure(messageBus, ids, "(Configuration Error)", stepIndex: 0,
+            await this.ReportSyntheticFailure(messageBus, cts, ids, "(Configuration Error)", stepIndex: 0,
                 new InvalidOperationException(msg), elapsed: 0m);
             summary.Failed++;
             summary.Total++;
@@ -584,13 +601,13 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     summary.Total++;
                     if (this.IsSkipException(bgFailure))
                     {
-                        await SendSkippedMessages(messageBus, cts, ids,
-                            UniqueIDGenerator.ForTest(ids.CaseId, 0), "(Background)", this.Traits, this.isExplicit, this.Timeout, bgFailure.Message);
+                        await this.EmitSynthetic(messageBus, cts, ids,
+                            UniqueIDGenerator.ForTest(ids.CaseId, 0), "(Background)", this.Traits, elapsed: 0m, new StepOutcome.Skipped(bgFailure.Message));
                         summary.Skipped++;
                     }
                     else
                     {
-                        this.ReportSyntheticFailure(messageBus, ids, "(Background)", stepIndex: 0, bgFailure, bgElapsed);
+                        await this.ReportSyntheticFailure(messageBus, cts, ids, "(Background)", stepIndex: 0, bgFailure, bgElapsed);
                         summary.Failed++;
                     }
 
@@ -602,19 +619,13 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             {
                 var invocationArguments = methodArguments;
                 var parameters = this.TestMethod.Method.GetParameters();
-                if (invocationArguments is null)
-                {
-                    if (parameters.Length > 0)
-                    {
-                        invocationArguments = [.. parameters.Select(p => p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null)];
-                    }
-                }
-                else if (invocationArguments.Length < parameters.Length)
+                var providedCount = invocationArguments?.Length ?? 0;
+                if (providedCount < parameters.Length)
                 {
                     invocationArguments =
                     [
-                        .. invocationArguments,
-                        .. parameters.Skip(invocationArguments.Length)
+                        .. invocationArguments ?? [],
+                        .. parameters.Skip(providedCount)
                             .Select(p => p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null),
                     ];
                 }
@@ -646,13 +657,13 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                         summary.Total++;
                         if (this.IsSkipException(tdFailure))
                         {
-                            await SendSkippedMessages(messageBus, cts, ids,
-                                UniqueIDGenerator.ForTest(ids.CaseId, teardownOffset), "(Teardown)", this.Traits, this.isExplicit, this.Timeout, tdFailure.Message);
+                            await this.EmitSynthetic(messageBus, cts, ids,
+                                UniqueIDGenerator.ForTest(ids.CaseId, teardownOffset), "(Teardown)", this.Traits, elapsed: 0m, new StepOutcome.Skipped(tdFailure.Message));
                             summary.Skipped++;
                         }
                         else
                         {
-                            this.ReportSyntheticFailure(messageBus, ids, "(Teardown)", teardownOffset, tdFailure, tdElapsed);
+                            await this.ReportSyntheticFailure(messageBus, cts, ids, "(Teardown)", teardownOffset, tdFailure, tdElapsed);
                             summary.Failed++;
                         }
                         // fall through — do NOT return (would suppress in-flight exception)
@@ -668,7 +679,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     // Teardown threw unexpectedly (e.g. from RunStepLoop or message bus). Record to summary
                     // but do not re-throw — this is a finally block, re-throwing would swallow any
                     // in-flight exception from the try block.
-                    this.ReportSyntheticFailure(messageBus, ids, "(Teardown)", teardownOffset, tdEx, elapsed: 0m);
+                    await this.ReportSyntheticFailure(messageBus, cts, ids, "(Teardown)", teardownOffset, tdEx, elapsed: 0m);
                     summary.Failed++;
                     summary.Total++;
                 }
@@ -699,28 +710,12 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             if (stopped)
             {
                 summary.Skipped++;
-                await SendSkippedMessages(messageBus, cts, ids, testUniqueId, step.TestDisplayName, step.Traits, this.isExplicit, this.Timeout, "Previous step failed");
+                await this.EmitSynthetic(messageBus, cts, ids, testUniqueId, step.TestDisplayName, step.Traits, elapsed: 0m, new StepOutcome.Skipped("Previous step failed"));
                 continue;
             }
 
             var start = DateTimeOffset.UtcNow;
-            if (!messageBus.QueueMessage(new TestStarting
-                {
-                    AssemblyUniqueID = ids.AssemblyId,
-                    Explicit = this.isExplicit,
-                    StartTime = start,
-                    TestCaseUniqueID = ids.CaseId,
-                    TestClassUniqueID = ids.ClassId,
-                    TestCollectionUniqueID = ids.CollectionId,
-                    TestDisplayName = step.TestDisplayName,
-                    TestMethodUniqueID = ids.MethodId,
-                    TestUniqueID = testUniqueId,
-                    Timeout = this.Timeout,
-                    Traits = step.Traits,
-                }))
-            {
-                await cts.CancelAsync();
-            }
+            await this.EmitStarting(messageBus, cts, ids, testUniqueId, step.TestDisplayName, step.Traits, start);
 
             Exception? failure = null;
             var sw = Stopwatch.StartNew();
@@ -748,45 +743,15 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             var elapsed = (decimal)sw.Elapsed.TotalSeconds;
             var finish = DateTimeOffset.UtcNow;
 
+            StepOutcome outcome;
             if (failure is null)
             {
-                if (!messageBus.QueueMessage(new TestPassed
-                    {
-                        AssemblyUniqueID = ids.AssemblyId,
-                        ExecutionTime = elapsed,
-                        FinishTime = finish,
-                        Output = string.Empty,
-                        TestCaseUniqueID = ids.CaseId,
-                        TestClassUniqueID = ids.ClassId,
-                        TestCollectionUniqueID = ids.CollectionId,
-                        TestMethodUniqueID = ids.MethodId,
-                        TestUniqueID = testUniqueId,
-                        Warnings = null,
-                    }))
-                {
-                    await cts.CancelAsync();
-                }
+                outcome = new StepOutcome.Passed();
             }
             else if (this.IsSkipException(failure))
             {
                 summary.Skipped++;
-                if (!messageBus.QueueMessage(new TestSkipped
-                    {
-                        AssemblyUniqueID = ids.AssemblyId,
-                        ExecutionTime = elapsed,
-                        FinishTime = finish,
-                        Output = string.Empty,
-                        Reason = failure.Message,
-                        TestCaseUniqueID = ids.CaseId,
-                        TestClassUniqueID = ids.ClassId,
-                        TestCollectionUniqueID = ids.CollectionId,
-                        TestMethodUniqueID = ids.MethodId,
-                        TestUniqueID = testUniqueId,
-                        Warnings = null,
-                    }))
-                {
-                    await cts.CancelAsync();
-                }
+                outcome = new StepOutcome.Skipped(failure.Message);
             }
             else
             {
@@ -796,49 +761,12 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     stopped = true;
                 }
 
-                var (types, messages, stackTraces, indices, cause) = ExceptionUtility.ExtractMetadata(failure);
-                if (!messageBus.QueueMessage(new TestFailed
-                    {
-                        AssemblyUniqueID = ids.AssemblyId,
-                        Cause = cause,
-                        ExceptionParentIndices = indices,
-                        ExceptionTypes = types,
-                        ExecutionTime = elapsed,
-                        FinishTime = finish,
-                        Messages = messages,
-                        Output = string.Empty,
-                        StackTraces = stackTraces,
-                        TestCaseUniqueID = ids.CaseId,
-                        TestClassUniqueID = ids.ClassId,
-                        TestCollectionUniqueID = ids.CollectionId,
-                        TestMethodUniqueID = ids.MethodId,
-                        TestUniqueID = testUniqueId,
-                        Warnings = null,
-                    }))
-                {
-                    await cts.CancelAsync();
-                }
+                outcome = new StepOutcome.Failed(failure);
             }
 
             summary.Time += elapsed;
 
-            if (!messageBus.QueueMessage(new TestFinished
-                {
-                    AssemblyUniqueID = ids.AssemblyId,
-                    Attachments = FrozenDictionary<string, TestAttachment>.Empty,
-                    ExecutionTime = elapsed,
-                    FinishTime = finish,
-                    Output = string.Empty,
-                    TestCaseUniqueID = ids.CaseId,
-                    TestClassUniqueID = ids.ClassId,
-                    TestCollectionUniqueID = ids.CollectionId,
-                    TestMethodUniqueID = ids.MethodId,
-                    TestUniqueID = testUniqueId,
-                    Warnings = null,
-                }))
-            {
-                await cts.CancelAsync();
-            }
+            await this.EmitOutcome(messageBus, cts, ids, testUniqueId, finish, elapsed, outcome);
         }
 
         return summary;

@@ -5,12 +5,10 @@ namespace LambdaTale.v3;
 public static class Scenario
 {
     private static readonly AsyncLocal<List<ScenarioTestDefinition>?> Tests = new();
-    private static readonly AsyncLocal<int> LambdaIndex = new();
 
     public static IDisposable Acquire()
     {
         Tests.Value = [];
-        LambdaIndex.Value = 0;
         return new Cleanup();
     }
 
@@ -18,14 +16,12 @@ public static class Scenario
     {
         var context = Tests.Value ?? MissingContext();
         context.Add(new ScenarioTestDefinition(tale, new TaleBody.SynchronousTaleBody(lambda), onError));
-        LambdaIndex.Value++;
     }
 
     public static void Add(string tale, Func<Task> body, OnError onError = OnError.Stop)
     {
         var context = Tests.Value ?? MissingContext();
         context.Add(new ScenarioTestDefinition(tale, new TaleBody.AsynchronousTaleBody(body), onError));
-        LambdaIndex.Value++;
     }
 
     public static IEnumerable<ScenarioTestDefinition> TestDefinitions =>
