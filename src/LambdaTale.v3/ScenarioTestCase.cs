@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Reflection;
@@ -542,6 +543,60 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         return (failure, (decimal)sw.Elapsed.TotalSeconds);
     }
 
+    // [Background]/[Teardown] resolution depends only on the test class type, so it is cached
+    // once per type rather than re-scanned on every test case and every delay-enumerated row.
+    private static readonly ConcurrentDictionary<Type, FixtureMethods> FixtureMethodsByType = new();
+
+    private readonly record struct FixtureMethods(MethodInfo? Background, MethodInfo? Teardown, string? ConfigError);
+
+    private static FixtureMethods ResolveFixtureMethods(Type testClass) =>
+        FixtureMethodsByType.GetOrAdd(testClass, static type =>
+        {
+            MethodInfo? background = null;
+            MethodInfo? teardown = null;
+            var backgroundCount = 0;
+            var teardownCount = 0;
+
+            foreach (var method in type.GetMethods(
+                BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (method.GetCustomAttribute<BackgroundAttribute>() is not null)
+                {
+                    background = method;
+                    backgroundCount++;
+                }
+
+                if (method.GetCustomAttribute<TeardownAttribute>() is not null)
+                {
+                    teardown = method;
+                    teardownCount++;
+                }
+            }
+
+            string? configError = null;
+            if (backgroundCount > 1 || teardownCount > 1)
+            {
+                var offenders = new List<string>();
+                if (backgroundCount > 1)
+                {
+                    offenders.Add(nameof(BackgroundAttribute));
+                }
+
+                if (teardownCount > 1)
+                {
+                    offenders.Add(nameof(TeardownAttribute));
+                }
+
+                var which = string.Join(" and ", offenders.Select(o => $"[{o}]"));
+                configError = $"Multiple {which} methods found. Only one is allowed per class.";
+            }
+
+            return new FixtureMethods(background, teardown, configError);
+        });
+
+    // GetParameters() clones an array on each call; the parameters are constant per test method.
+    private ParameterInfo[] MethodParameters => field ??= this.TestMethod.Method.GetParameters();
+
     private async ValueTask<RunSummary> RunWithArguments(
         IMessageBus messageBus,
         object?[] constructorArguments,
@@ -551,40 +606,21 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     {
         var summary = new RunSummary();
 
-        // Instantiate test class using constructor arguments provided by xUnit (resolved fixtures)
-        var testClassInstance = constructorArguments.Length == 0
-            ? Activator.CreateInstance(this.TestClass.Class)!
-            : Activator.CreateInstance(this.TestClass.Class, constructorArguments)!;
+        var (backgroundMethod, teardownMethod, configError) = ResolveFixtureMethods(this.TestClass.Class);
 
-        var allMethods = testClassInstance.GetType().GetMethods(
-            BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-        var backgroundMethods = allMethods.Where(m => m.GetCustomAttribute<BackgroundAttribute>() != null).ToList();
-        var teardownMethods = allMethods.Where(m => m.GetCustomAttribute<TeardownAttribute>() != null).ToList();
-
-        if (backgroundMethods.Count > 1 || teardownMethods.Count > 1)
+        if (configError is not null)
         {
-            var offenders = new List<string>();
-            if (backgroundMethods.Count > 1)
-            {
-                offenders.Add(nameof(BackgroundAttribute));
-            }
-
-            if (teardownMethods.Count > 1)
-            {
-                offenders.Add(nameof(TeardownAttribute));
-            }
-
-            var which = string.Join(" and ", offenders.Select(o => $"[{o}]"));
-            var msg = $"Multiple {which} methods found. Only one is allowed per class.";
             await this.ReportSyntheticFailure(messageBus, cts, ids, "(Configuration Error)", stepIndex: 0,
-                new InvalidOperationException(msg), elapsed: 0m);
+                new InvalidOperationException(configError), elapsed: 0m);
             summary.Failed++;
             summary.Total++;
             return summary;
         }
 
-        var backgroundMethod = backgroundMethods.SingleOrDefault();
-        var teardownMethod = teardownMethods.SingleOrDefault();
+        // Instantiate test class using constructor arguments provided by xUnit (resolved fixtures)
+        var testClassInstance = constructorArguments.Length == 0
+            ? Activator.CreateInstance(this.TestClass.Class)!
+            : Activator.CreateInstance(this.TestClass.Class, constructorArguments)!;
 
         var mainStepCount = 0;
         var backgroundFailed = false;
@@ -618,7 +654,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             if (!backgroundFailed)
             {
                 var invocationArguments = methodArguments;
-                var parameters = this.TestMethod.Method.GetParameters();
+                var parameters = this.MethodParameters;
                 var providedCount = invocationArguments?.Length ?? 0;
                 if (providedCount < parameters.Length)
                 {
@@ -700,10 +736,16 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         var summary = new RunSummary();
         var stopped = false;
 
+        // Row arguments are identical for every step, so serialize them once per row rather than
+        // re-serializing inside each step's UniqueID.
+        var serializedRowArgs = rowArgs is { Length: > 0 }
+            ? Array.ConvertAll(rowArgs, static arg => SerializationHelper.Instance.Serialize(arg))
+            : null;
+
         for (var i = 0; i < steps.Count; i++)
         {
             var td = steps[i];
-            var step = new ScenarioStep(this, stepIndexOffset + i, td.Tale, rowArgs);
+            var step = new ScenarioStep(this, stepIndexOffset + i, td.Tale, rowArgs, serializedRowArgs);
             var testUniqueId = step.UniqueID;
             summary.Total++;
 

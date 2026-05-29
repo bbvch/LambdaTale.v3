@@ -7,7 +7,8 @@ public sealed class ScenarioStep(
     ScenarioTestCase parentTestCase,
     int stepIndex,
     string tale,
-    object?[]? rowArgs) : IXunitTest
+    object?[]? rowArgs,
+    IReadOnlyList<string>? serializedRowArgs = null) : IXunitTest
 {
     public ITestCase TestCase => parentTestCase;
 
@@ -46,9 +47,19 @@ public sealed class ScenarioStep(
             using var g = new UniqueIDGenerator();
             g.Add(parentTestCase.UniqueID);
             g.Add(stepIndex.ToString());
-            foreach (var arg in rowArgs)
+            if (serializedRowArgs is not null)
             {
-                g.Add(SerializationHelper.Instance.Serialize(arg));
+                foreach (var serialized in serializedRowArgs)
+                {
+                    g.Add(serialized);
+                }
+            }
+            else
+            {
+                foreach (var arg in rowArgs)
+                {
+                    g.Add(SerializationHelper.Instance.Serialize(arg));
+                }
             }
 
             return g.Compute();
