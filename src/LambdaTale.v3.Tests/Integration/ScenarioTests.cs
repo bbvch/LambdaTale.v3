@@ -1,20 +1,13 @@
 using System.Collections;
 using Xunit;
 
-namespace LambdaTale.v3.Tests;
+namespace LambdaTale.v3.Tests.Integration;
 
 public class ScenarioTests
 {
     public static IEnumerable<TheoryDataRow<int, string>> TestMemberData = [new(1, "one"), new(2, "two"), new(3, "three")];
 
     private readonly int classData = 10;
-
-    [Fact]
-    public void ShouldPass() => Assert.True(true);
-
-    [Theory]
-    [InlineData(0)]
-    public void Theory(int value) => Assert.Equal(0, value);
 
     [Scenario]
     public void Scenario()
@@ -138,47 +131,6 @@ public class ScenarioTests
         $"Given value is {value}".x(() => { });
         $"Then name is '{name}'".x(() => Assert.NotEmpty(name));
         "And value is positive".x(() => Assert.True(value > 0));
-    }
-
-    [Scenario(Skip = "demonstrating skip")]
-    public void SkippedScenario()
-    {
-        "Given a step".x(() => { });
-        "When another step".x(() => { });
-        "Then a final step".x(() => Assert.Fail("should not run"));
-    }
-
-    [Scenario(Skip = "demonstrating skip with data")]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void SkippedScenarioWithData(int value)
-    {
-        $"Given value is {value}".x(() => { });
-        "Then it should never run".x(() => Assert.Fail("should not run"));
-    }
-
-    [Scenario]
-    public void ScenarioUsingContinueOnError()
-    {
-        var x = 0;
-        "Given x is set to 1 using ContinueOnError".ContinueOnError(() => x = 1);
-        "Then x is 1".x(() => Assert.Equal(1, x));
-    }
-
-    [Scenario]
-    public void ScenarioUsingStopOnError()
-    {
-        var x = 0;
-        "Given x is set to 1 using StopOnError".StopOnError(() => x = 1);
-        "Then x is 1".x(() => Assert.Equal(1, x));
-    }
-
-    [Scenario]
-    public void ScenarioUsingXWithOnErrorParam()
-    {
-        var x = 0;
-        "Given x is set to 1".x(() => x = 1, OnError.Continue);
-        "Then x is 1".x(() => Assert.Equal(1, x));
     }
 
     private class TestClassData : IEnumerable<TheoryDataRow>

@@ -156,6 +156,19 @@ public class AttributeBehaviorTests
     // ─── Skip-reason precedence ───────────────────────────────────────────────
 
     [Fact]
+    public async Task SkipReasonSkipsScenarioWithoutRunningSteps()
+    {
+        var bus = await ScenarioTestRunner.RunFixture<SimpleFixture>(
+            nameof(SimpleFixture.Scenario),
+            skipReason: "demonstrating skip");
+
+        var skipped = Assert.Single(bus.OfType<ITestSkipped>());
+        Assert.Equal("demonstrating skip", skipped.Reason);
+        Assert.Empty(bus.OfType<ITestPassed>());
+        Assert.DoesNotContain(bus.OfType<ITestStarting>(), m => m.TestDisplayName.Contains("a step"));
+    }
+
+    [Fact]
     public async Task SkipReasonWinsOverExplicitOption()
     {
         var bus = await ScenarioTestRunner.RunFixture<SimpleFixture>(

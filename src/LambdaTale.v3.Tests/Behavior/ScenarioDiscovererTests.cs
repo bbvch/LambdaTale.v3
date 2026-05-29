@@ -5,7 +5,7 @@ using Xunit;
 using Xunit.Sdk;
 using Xunit.v3;
 
-namespace LambdaTale.v3.Tests;
+namespace LambdaTale.v3.Tests.Behavior;
 
 public class ScenarioDiscovererTests
 {
@@ -97,6 +97,17 @@ public class ScenarioDiscovererTests
 
         Assert.Equal(3, result.Count);
         Assert.All(result, tc => Assert.IsType<ScenarioTestCase>(tc));
+    }
+
+    [Fact]
+    public async Task DiscoverAppliesAttributeSkipReasonToAllDataRows()
+    {
+        var testMethod = FixtureMethod.For<WithInlineDataFixture>(nameof(WithInlineDataFixture.Method));
+        var result = await new ScenarioDiscoverer().Discover(
+            new SimpleDiscoveryOptions(), testMethod, new ScenarioAttribute { Skip = "demonstrating skip with data" });
+
+        Assert.Equal(3, result.Count);
+        Assert.All(result, tc => Assert.Equal("demonstrating skip with data", Assert.IsType<ScenarioTestCase>(tc).SkipReason));
     }
 
     [Fact]
