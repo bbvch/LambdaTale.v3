@@ -62,8 +62,42 @@ public class SerializationBehaviorTests
         public object? GetValue(string key) => this.values.GetValueOrDefault(key);
     }
 
+    [Fact]
+    public void UniqueIDDoesNotThrowForNonXunitSerializableArguments()
+    {
+        var testMethod = FixtureMethod.For<Fixture>(nameof(Fixture.MethodWithSumType));
+        var testCase = new ScenarioTestCase(
+            testMethod: testMethod,
+            testMethodArguments: [new SumType.CaseA("hello"), new SumType.CaseB()]);
+
+        var id = testCase.UniqueID;
+
+        Assert.NotNull(id);
+        Assert.NotEmpty(id);
+    }
+
+    [Fact]
+    public void UniqueIDIsDifferentForDifferentNonSerializableArguments()
+    {
+        var testMethod = FixtureMethod.For<Fixture>(nameof(Fixture.MethodWithSumType));
+        var case1 = new ScenarioTestCase(testMethod, testMethodArguments: [new SumType.CaseA("hello")]);
+        var case2 = new ScenarioTestCase(testMethod, testMethodArguments: [new SumType.CaseA("world")]);
+        var case3 = new ScenarioTestCase(testMethod, testMethodArguments: [new SumType.CaseB()]);
+
+        Assert.NotEqual(case1.UniqueID, case2.UniqueID);
+        Assert.NotEqual(case1.UniqueID, case3.UniqueID);
+    }
+
     private sealed class Fixture
     {
         public void Method() { }
+        public void MethodWithSumType(SumType t) { }
+    }
+
+    private abstract record SumType
+    {
+        private SumType() { }
+        public sealed record CaseA(string Reason) : SumType;
+        public sealed record CaseB : SumType;
     }
 }

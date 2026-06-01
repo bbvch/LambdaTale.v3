@@ -60,6 +60,21 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
     public object?[]? TestMethodArguments { get; private set; }
 
+    // Serialize an argument to a stable string for UniqueID generation. Falls back to a
+    // type-qualified ToString() when xUnit's serializer doesn't support the type, rather
+    // than throwing and preventing test discovery.
+    internal static string SerializeArgForId(object? arg)
+    {
+        try
+        {
+            return SerializationHelper.Instance.Serialize(arg);
+        }
+        catch (ArgumentException)
+        {
+            return arg is null ? ":null:" : $":{arg.GetType().AssemblyQualifiedName}:{arg}";
+        }
+    }
+
     public string UniqueID
     {
         get
@@ -75,7 +90,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             {
                 foreach (var arg in this.TestMethodArguments)
                 {
-                    g.Add(SerializationHelper.Instance.Serialize(arg));
+                    g.Add(SerializeArgForId(arg));
                 }
             }
 
@@ -739,7 +754,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         // Row arguments are identical for every step, so serialize them once per row rather than
         // re-serializing inside each step's UniqueID.
         var serializedRowArgs = rowArgs is { Length: > 0 }
-            ? Array.ConvertAll(rowArgs, static arg => SerializationHelper.Instance.Serialize(arg))
+            ? Array.ConvertAll(rowArgs, static arg => SerializeArgForId(arg))
             : null;
 
         for (var i = 0; i < steps.Count; i++)

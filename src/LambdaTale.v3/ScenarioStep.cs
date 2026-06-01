@@ -58,7 +58,7 @@ public sealed class ScenarioStep(
             {
                 foreach (var arg in rowArgs)
                 {
-                    g.Add(SerializationHelper.Instance.Serialize(arg));
+                    g.Add(ScenarioTestCase.SerializeArgForId(arg));
                 }
             }
 
