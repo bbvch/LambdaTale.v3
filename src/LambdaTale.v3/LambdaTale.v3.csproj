@@ -1,4 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>bbv.LambdaTale.v3</PackageId>
+    <Title>LambdaTale.v3</Title>
+    <Description>BDD-style, natural-language test steps for xUnit.net v3. Describe each step of a test in plain language with .x() and have each step reported as its own result in the test runner.</Description>
+    <Authors>LambdaTale.v3 Authors</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/bbvch/LambdaTale.v3</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/bbvch/LambdaTale.v3</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>xunit;xunit-v3;bdd;testing;scenario;gherkin</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="xunit.v3.extensibility.core" />
