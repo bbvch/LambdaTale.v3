@@ -20,7 +20,8 @@ internal static class ScenarioTestRunner
         string? skipUnless = null,
         string? skipWhen = null,
         int timeout = 0,
-        bool isDelayEnumerated = false)
+        bool isDelayEnumerated = false,
+        object?[]? constructorArguments = null)
     {
         var bus = new CapturingMessageBus();
         var testMethod = FixtureMethod.For<TFixture>(methodName);
@@ -39,7 +40,7 @@ internal static class ScenarioTestRunner
         await testCase.Run(
             explicitOption,
             bus,
-            constructorArguments: [],
+            constructorArguments: constructorArguments ?? [],
             new ExceptionAggregator(),
             new CancellationTokenSource());
         return bus;

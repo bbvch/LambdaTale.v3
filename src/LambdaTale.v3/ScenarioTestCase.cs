@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Reflection;
+using Xunit;
 using Xunit.Internal;
 using Xunit.Sdk;
 using Xunit.v3;
@@ -361,7 +362,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         string testUniqueId,
         DateTimeOffset finishTime,
         decimal elapsed,
-        StepOutcome outcome)
+        StepOutcome outcome,
+        string output)
     {
         TestFailed MakeFailed(Exception ex)
         {
@@ -375,7 +377,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                 ExecutionTime = elapsed,
                 FinishTime = finishTime,
                 Messages = messages,
-                Output = string.Empty,
+                Output = output,
                 StackTraces = stackTraces,
                 TestCaseUniqueID = ids.CaseId,
                 TestClassUniqueID = ids.ClassId,
@@ -393,7 +395,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                 AssemblyUniqueID = ids.AssemblyId,
                 ExecutionTime = elapsed,
                 FinishTime = finishTime,
-                Output = string.Empty,
+                Output = output,
                 TestCaseUniqueID = ids.CaseId,
                 TestClassUniqueID = ids.ClassId,
                 TestCollectionUniqueID = ids.CollectionId,
@@ -406,7 +408,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                 AssemblyUniqueID = ids.AssemblyId,
                 ExecutionTime = elapsed,
                 FinishTime = finishTime,
-                Output = string.Empty,
+                Output = output,
                 Reason = skipped.Reason,
                 TestCaseUniqueID = ids.CaseId,
                 TestClassUniqueID = ids.ClassId,
@@ -427,7 +429,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             Attachments = FrozenDictionary<string, TestAttachment>.Empty,
             ExecutionTime = elapsed,
             FinishTime = finishTime,
-            Output = string.Empty,
+            Output = output,
             TestCaseUniqueID = ids.CaseId,
             TestClassUniqueID = ids.ClassId,
             TestCollectionUniqueID = ids.CollectionId,
@@ -449,7 +451,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     {
         var now = DateTimeOffset.UtcNow;
         await EmitStarting(messageBus, cts, ids, testUniqueId, displayName, traits, now);
-        await EmitOutcome(messageBus, cts, ids, testUniqueId, now, elapsed, outcome);
+        await EmitOutcome(messageBus, cts, ids, testUniqueId, now, elapsed, outcome, string.Empty);
     }
 
     private readonly record struct MsgIds(
@@ -533,6 +535,36 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         }
 
         return this.SkipReason ?? $"Conditional skip ({propertyName})";
+    }
+
+    // Mirrors xUnit's constructor-argument resolution: ITestOutputHelper params get the managed
+    // helper, deferred Func<T> placeholders are invoked, and the rest come from xUnit's fixtures.
+    private static object CreateTestClassInstance(Type testClass, object?[] constructorArguments, ITestOutputHelper outputHelper)
+    {
+        var ctor = testClass.GetConstructors().Single(c => !c.IsStatic && c.IsPublic);
+        var parameters = ctor.GetParameters();
+        var args = new object?[parameters.Length];
+
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var parameterType = parameters[i].ParameterType;
+            if (parameterType == typeof(ITestOutputHelper))
+            {
+                args[i] = outputHelper;
+                continue;
+            }
+
+            var provided = i < constructorArguments.Length ? constructorArguments[i] : null;
+            args[i] = provided is not null && provided.GetType() == typeof(Func<>).MakeGenericType(parameterType)
+                ? provided.GetType().GetMethod("Invoke", Type.EmptyTypes)!.Invoke(provided, null)
+                : provided;
+        }
+
+        return TypeActivator.Current.CreateInstance(
+            ctor,
+            args!,
+            static (_, missing) =>
+                $"The following constructor parameters did not have matching fixture data: {string.Join(", ", missing.Select(p => $"{p.ParameterType.Name} {p.Name}"))}");
     }
 
     private static async ValueTask<(Exception? failure, decimal elapsedSeconds)> InvokeMethod(
@@ -632,10 +664,9 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             return summary;
         }
 
-        // Instantiate test class using constructor arguments provided by xUnit (resolved fixtures)
-        var testClassInstance = constructorArguments.Length == 0
-            ? Activator.CreateInstance(this.TestClass.Class)!
-            : Activator.CreateInstance(this.TestClass.Class, constructorArguments)!;
+        // One helper per case, re-initialized per step in RunStepLoop to attribute output correctly.
+        var outputHelper = new TestOutputHelper();
+        var testClassInstance = CreateTestClassInstance(this.TestClass.Class, constructorArguments, outputHelper);
 
         var mainStepCount = 0;
         var backgroundFailed = false;
@@ -689,7 +720,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
                 var mainSteps = Scenario.TestDefinitions.ToList();
                 mainStepCount = mainSteps.Count;
-                summary.Aggregate(await this.RunStepLoop(mainSteps, stepIndexOffset: 0, methodArguments, messageBus, cts, ids));
+                summary.Aggregate(await this.RunStepLoop(mainSteps, stepIndexOffset: 0, methodArguments, messageBus, cts, ids, outputHelper));
             }
         }
         finally
@@ -722,7 +753,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
                     else
                     {
                         var tdSteps = Scenario.TestDefinitions.ToList();
-                        summary.Aggregate(await this.RunStepLoop(tdSteps, stepIndexOffset: teardownOffset, methodArguments, messageBus, cts, ids));
+                        summary.Aggregate(await this.RunStepLoop(tdSteps, stepIndexOffset: teardownOffset, methodArguments, messageBus, cts, ids, outputHelper));
                     }
                 }
                 catch (Exception tdEx)
@@ -746,7 +777,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         object?[]? rowArgs,
         IMessageBus messageBus,
         CancellationTokenSource cts,
-        MsgIds ids)
+        MsgIds ids,
+        TestOutputHelper outputHelper)
     {
         var summary = new RunSummary();
         var stopped = false;
@@ -777,6 +809,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             Exception? failure = null;
             var sw = Stopwatch.StartNew();
 
+            outputHelper.Initialize(messageBus, step);
+            TestContext.SetForTest(step, TestEngineStatus.Running, cts.Token, testOutputHelper: outputHelper);
             try
             {
                 switch (td.Lambda)
@@ -797,6 +831,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             }
 
             sw.Stop();
+            var output = outputHelper.Output;
+            outputHelper.Uninitialize();
             var elapsed = (decimal)sw.Elapsed.TotalSeconds;
             var finish = DateTimeOffset.UtcNow;
 
@@ -823,7 +859,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
             summary.Time += elapsed;
 
-            await this.EmitOutcome(messageBus, cts, ids, testUniqueId, finish, elapsed, outcome);
+            await this.EmitOutcome(messageBus, cts, ids, testUniqueId, finish, elapsed, outcome, output);
         }
 
         return summary;
