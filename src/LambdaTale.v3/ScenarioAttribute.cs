@@ -13,9 +13,3 @@ public sealed class ScenarioAttribute(
 {
     public bool SkipTestWithoutData { get; init; }
 }
-
-[AttributeUsage(AttributeTargets.Method)]
-public sealed class BackgroundAttribute : Attribute;
-
-[AttributeUsage(AttributeTargets.Method)]
-public sealed class TeardownAttribute : Attribute;
