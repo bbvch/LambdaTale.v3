@@ -5,8 +5,7 @@ namespace LambdaTale.v3.Tests.Harness;
 
 // Fixtures passed in as TFixture should be `private sealed` nested classes so xUnit's
 // own discovery skips them. The fixture method does NOT need [Scenario] — Run() invokes
-// the MethodInfo directly. [Background]/[Teardown] DO matter since RunWithArguments
-// reflects for them.
+// the MethodInfo directly.
 internal static class ScenarioTestRunner
 {
     public static async Task<CapturingMessageBus> RunFixture<TFixture>(

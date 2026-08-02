@@ -7,9 +7,9 @@ using Xunit.v3;
 
 namespace LambdaTale.v3;
 
-// Stateless execution engine for a single test case: instantiates the test class, runs
-// [Background]/[Teardown], and drives the step loop. All inputs are passed explicitly so the
-// output depends purely on (testCase, emitter, arguments) with no shared instance state.
+// Stateless execution engine for a single test case: instantiates the test class,
+// drives the step loop, and then runs disposal hooks. All inputs are passed explicitly
+// so the output depends purely on (testCase, emitter, arguments) with no shared instance state.
 internal static class ScenarioCaseRunner
 {
     public static async ValueTask<RunSummary> RunDelayEnumerated(
@@ -41,51 +41,53 @@ internal static class ScenarioCaseRunner
     {
         var summary = new RunSummary();
 
-        var (backgroundMethod, teardownMethod, configError) = FixtureMethodResolver.Resolve(testCase.TestClass.Class);
-
-        if (configError is not null)
-        {
-            await emitter.ReportSyntheticFailure("(Configuration Error)", stepIndex: 0,
-                new InvalidOperationException(configError), elapsed: 0m);
-            summary.Failed++;
-            summary.Total++;
-            return summary;
-        }
-
         // One helper per case, re-initialized per step in RunStepLoop to attribute output correctly.
         var outputHelper = new TestOutputHelper();
-        var testClassInstance = CreateTestClassInstance(testCase.TestClass.Class, constructorArguments, outputHelper);
+        object? testClassInstance = null;
 
         var mainStepCount = 0;
-        var backgroundFailed = false;
+        var constructorFailed = false;
         try
         {
             using var ctx = Scenario.Acquire();
 
-            if (backgroundMethod != null)
+            var ctorStart = Stopwatch.StartNew();
+            Exception? ctorFailure = null;
+            try
             {
-                var (bgFailure, bgElapsed) = await InvokeMethod(testClassInstance, backgroundMethod);
-                if (bgFailure != null)
-                {
-                    summary.Time += bgElapsed;
-                    summary.Total++;
-                    if (IsSkipException(testCase, bgFailure))
-                    {
-                        await emitter.EmitSynthetic(
-                            emitter.TestUniqueId(0), "(Background)", testCase.Traits, elapsed: 0m, new StepOutcome.Skipped(bgFailure.Message));
-                        summary.Skipped++;
-                    }
-                    else
-                    {
-                        await emitter.ReportSyntheticFailure("(Background)", stepIndex: 0, bgFailure, bgElapsed);
-                        summary.Failed++;
-                    }
-
-                    backgroundFailed = true;
-                }
+                testClassInstance = CreateTestClassInstance(testCase.TestClass.Class, constructorArguments, outputHelper);
+            }
+            catch (Exception ex)
+            {
+                ctorFailure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
+            }
+            finally
+            {
+                ctorStart.Stop();
             }
 
-            if (!backgroundFailed)
+            if (ctorFailure is not null)
+            {
+                var ctorElapsed = (decimal)ctorStart.Elapsed.TotalSeconds;
+                summary.Time += ctorElapsed;
+                summary.Total++;
+
+                if (IsSkipException(testCase, ctorFailure))
+                {
+                    await emitter.EmitSynthetic(
+                        emitter.TestUniqueId(0), "(Constructor)", testCase.Traits, elapsed: 0m, new StepOutcome.Skipped(ctorFailure.Message));
+                    summary.Skipped++;
+                }
+                else
+                {
+                    await emitter.ReportSyntheticFailure("(Constructor)", stepIndex: 0, ctorFailure, ctorElapsed);
+                    summary.Failed++;
+                }
+
+                constructorFailed = true;
+            }
+
+            if (!constructorFailed)
             {
                 var invocationArguments = methodArguments;
                 var parameters = testCase.MethodParameters;
@@ -113,27 +115,28 @@ internal static class ScenarioCaseRunner
         }
         finally
         {
-            if (teardownMethod != null)
+            if (testClassInstance is not null)
             {
-                var teardownOffset = backgroundFailed ? 1 : mainStepCount;
+                var disposeOffset = constructorFailed ? 1 : mainStepCount;
                 using var teardownCtx = Scenario.Acquire();
 
                 try
                 {
-                    var (tdFailure, tdElapsed) = await InvokeMethod(testClassInstance, teardownMethod);
-                    if (tdFailure != null)
+                    var (disposeFailure, disposeElapsed) = await DisposeTestClassInstance(testClassInstance);
+                    if (disposeFailure != null)
                     {
-                        summary.Time += tdElapsed;
+                        summary.Time += disposeElapsed;
                         summary.Total++;
-                        if (IsSkipException(testCase, tdFailure))
+                        if (IsSkipException(testCase, disposeFailure))
                         {
                             await emitter.EmitSynthetic(
-                                emitter.TestUniqueId(teardownOffset), "(Teardown)", testCase.Traits, elapsed: 0m, new StepOutcome.Skipped(tdFailure.Message));
+                                emitter.TestUniqueId(disposeOffset), "(Dispose)", testCase.Traits, elapsed: 0m,
+                                new StepOutcome.Skipped(disposeFailure.Message));
                             summary.Skipped++;
                         }
                         else
                         {
-                            await emitter.ReportSyntheticFailure("(Teardown)", teardownOffset, tdFailure, tdElapsed);
+                            await emitter.ReportSyntheticFailure("(Dispose)", disposeOffset, disposeFailure, disposeElapsed);
                             summary.Failed++;
                         }
                         // fall through — do NOT return (would suppress in-flight exception)
@@ -141,15 +144,15 @@ internal static class ScenarioCaseRunner
                     else
                     {
                         var tdSteps = Scenario.TestDefinitions.ToList();
-                        summary.Aggregate(await RunStepLoop(testCase, emitter, tdSteps, stepIndexOffset: teardownOffset, methodArguments, outputHelper));
+                        summary.Aggregate(await RunStepLoop(testCase, emitter, tdSteps, stepIndexOffset: disposeOffset, methodArguments, outputHelper));
                     }
                 }
                 catch (Exception tdEx)
                 {
-                    // Teardown threw unexpectedly (e.g. from RunStepLoop or message bus). Record to summary
+                    // Dispose processing threw unexpectedly (e.g. from RunStepLoop or message bus). Record to summary
                     // but do not re-throw — this is a finally block, re-throwing would swallow any
                     // in-flight exception from the try block.
-                    await emitter.ReportSyntheticFailure("(Teardown)", teardownOffset, tdEx, elapsed: 0m);
+                    await emitter.ReportSyntheticFailure("(Dispose)", disposeOffset, tdEx, elapsed: 0m);
                     summary.Failed++;
                     summary.Total++;
                 }
@@ -285,18 +288,19 @@ internal static class ScenarioCaseRunner
                 $"The following constructor parameters did not have matching fixture data: {string.Join(", ", missing.Select(p => $"{p.ParameterType.Name} {p.Name}"))}");
     }
 
-    private static async ValueTask<(Exception? failure, decimal elapsedSeconds)> InvokeMethod(
-        object instance,
-        MethodInfo method)
+    private static async ValueTask<(Exception? failure, decimal elapsedSeconds)> DisposeTestClassInstance(object instance)
     {
         var sw = Stopwatch.StartNew();
         Exception? failure = null;
         try
         {
-            var result = method.Invoke(instance, null);
-            if (result is Task task)
+            if (instance is IAsyncDisposable asyncDisposable)
             {
-                await task;
+                await asyncDisposable.DisposeAsync();
+            }
+            else if (instance is IDisposable disposable)
+            {
+                disposable.Dispose();
             }
         }
         catch (Exception ex)

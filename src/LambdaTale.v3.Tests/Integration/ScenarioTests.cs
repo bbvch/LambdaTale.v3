@@ -5,7 +5,7 @@ namespace LambdaTale.v3.Tests.Integration;
 
 public class ScenarioTests
 {
-    public static IEnumerable<TheoryDataRow<int, string>> TestMemberData = [new(1, "one"), new(2, "two"), new(3, "three")];
+    public static IEnumerable<TheoryDataRow<int, string>> TestMemberData => [new(1, "one"), new(2, "two"), new(3, "three")];
 
     private readonly int classData = 10;
 

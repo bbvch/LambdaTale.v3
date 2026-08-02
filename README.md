@@ -91,15 +91,13 @@ public void With_inline_data(int value, string name)
 }
 ```
 
-**Background and teardown.** Mark one method per class with `[Background]` for shared
-setup steps and one with `[Teardown]` for cleanup steps. Both may be sync or async:
+**Setup and cleanup lifecycle.** Put shared setup steps in the test class constructor,
+and cleanup steps in `IDisposable.Dispose()` or `IAsyncDisposable.DisposeAsync()`:
 
 ```csharp
-[Background]
-public void Setup() => "Given a fresh log".x(() => log.Clear());
+public MyScenarioTests() => "Given a fresh log".x(() => log.Clear());
 
-[Teardown]
-public void Cleanup() => "Then the log is flushed".x(() => log.Add("flushed"));
+public void Dispose() => "Then the log is flushed".x(() => log.Add("flushed"));
 ```
 
 **Error handling.** A failing step stops the scenario and remaining steps are reported
@@ -111,8 +109,8 @@ skipped (`OnError.Stop`, the default). Use `OnError.Continue` — or `.ContinueO
 ```csharp
 [Scenario(Skip = "not implemented yet")]
 [Scenario(SkipUnless = nameof(FeatureEnabled))]   // public static bool
-[Scenario(Explicit = true)]                        // runs only when selected
-[Scenario(Timeout = 2000)]                         // fails past 2s
+[Scenario(Explicit = true)]                       // runs only when selected
+[Scenario(Timeout = 2000)]                        // fails past 2s
 ```
 
 Throwing a skip exception from inside a step marks that step skipped rather than failed.
@@ -129,17 +127,16 @@ work is in the plumbing:
    [v2 → v3 guide](https://xunit.net/docs/getting-started/v3/migration).
 2. Replace the `bbv.LambdaTale` package with `bbv.LambdaTale.v3` and the namespace with
    `LambdaTale.v3`.
-3. Move per-scenario setup/cleanup to the `[Background]` / `[Teardown]` method attributes.
-
-The static `Spec(...)` form from v2 is not available — use `"description".x(() => …)`.
+3. The static `Spec(...)` form from v2 is not available — use `"description".x(() => …)`.
 
 ## How it works
 
 `[Scenario]` is a `FactAttribute` with a custom `IXunitTestCaseDiscoverer`. The discoverer
 expands data attributes into one test case per row; at execution time each case builds the
-test class, runs `[Background]`, invokes the scenario to collect its `.x()` steps, runs
-each step as an individual test, then runs `[Teardown]`. Everything goes through xUnit.net
-v3's own extensibility interfaces, so no custom test framework is involved.
+test class, invokes the scenario to collect its `.x()` steps, runs each step as an
+individual test, then runs `Dispose()` / `DisposeAsync()` and emits any cleanup steps.
+Everything goes through xUnit.net v3's own extensibility interfaces, so no custom test
+framework is involved.
 
 ## Build and test
 
