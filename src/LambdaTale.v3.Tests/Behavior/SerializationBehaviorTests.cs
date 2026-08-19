@@ -28,12 +28,12 @@ public class SerializationBehaviorTests
             timeout: 5000);
 
         var info = new InMemorySerializationInfo();
-        original.Serialize(info);
+        ((IXunitSerializable)original).Serialize(info);
 
 #pragma warning disable CS0618 // [Obsolete] de-serialization ctor
         var restored = new ScenarioTestCase();
 #pragma warning restore CS0618
-        restored.Deserialize(info);
+        ((IXunitSerializable)restored).Deserialize(info);
 
         Assert.Same(testMethod, restored.TestMethod);
         Assert.Equal("Custom Display", restored.TestCaseDisplayName);

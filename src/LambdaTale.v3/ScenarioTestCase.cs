@@ -1,18 +1,15 @@
 using System.Diagnostics;
 using System.Reflection;
-using Xunit.Internal;
 using Xunit.Sdk;
 using Xunit.v3;
 
 namespace LambdaTale.v3;
 
 [DebuggerDisplay(@"\{ class = {TestMethod.TestClass.TestClassName}, method = {TestMethod.MethodName}, display = {TestCaseDisplayName} \}")]
-public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayEnumeratedTestCase, IXunitSerializable
+public sealed class ScenarioTestCase : XunitTestCase, ISelfExecutingXunitTestCase, IXunitDelayEnumeratedTestCase
 {
-    private string? testCaseDisplayName;
     private bool isDelayEnumerated;
     private bool skipTestWithoutData;
-    private bool isExplicit;
 
     [Obsolete("Called by the de-serializer; should only be called by deriving classes for de-serialization purposes")]
     public ScenarioTestCase() { }
@@ -21,6 +18,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         IXunitTestMethod testMethod,
         object?[]? testMethodArguments = null,
         string? testCaseDisplayName = null,
+        string? uniqueID = null,
         string? skipReason = null,
         string? sourceFilePath = null,
         int? sourceLineNumber = null,
@@ -33,193 +31,35 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         string? skipWhen = null,
         int timeout = 0,
         bool disableParallelization = false)
+        : base(
+            testMethod,
+            testCaseDisplayName ?? DefaultDisplayName(testMethod, testMethodArguments),
+            uniqueID ?? ComputeUniqueID(testMethod, testMethodArguments),
+            isExplicit,
+            testLabel: null,
+            disableParallelization,
+            skipExceptions,
+            skipReason,
+            skipType,
+            skipUnless,
+            skipWhen,
+            TestIntrospectionHelper.GetTraits(testMethod, dataRow: null),
+            testMethodArguments,
+            sourceFilePath,
+            sourceLineNumber,
+            timeout)
     {
-        this.TestMethod = Guard.ArgumentNotNull(testMethod);
-        this.TestMethodArguments = testMethodArguments;
-        this.testCaseDisplayName = testCaseDisplayName;
-        this.SkipReason = skipReason;
-        this.SourceFilePath = sourceFilePath;
-        this.SourceLineNumber = sourceLineNumber;
         this.isDelayEnumerated = isDelayEnumerated;
         this.skipTestWithoutData = skipTestWithoutData;
-        this.isExplicit = isExplicit;
-        this.SkipExceptions = skipExceptions;
-        this.SkipType = skipType;
-        this.SkipUnless = skipUnless;
-        this.SkipWhen = skipWhen;
-        this.Timeout = timeout;
-        this.DisableParallelization = disableParallelization;
     }
 
-    public IXunitTestMethod TestMethod
-    {
-        get =>
-            field ?? throw new InvalidOperationException($"Uninitialized {nameof(ScenarioTestCase)}.{nameof(this.TestMethod)}");
-        private set;
-    }
-
-    public object?[]? TestMethodArguments { get; private set; }
-
-    // Serialize an argument to a stable string for UniqueID generation. Falls back to a
-    // type-qualified ToString() when xUnit's serializer doesn't support the type, rather
-    // than throwing and preventing test discovery.
-    internal static string SerializeArgForId(object? arg)
-    {
-        try
-        {
-            return SerializationHelper.Instance.Serialize(arg);
-        }
-        catch (ArgumentException)
-        {
-            return arg is null ? ":null:" : $":{arg.GetType().AssemblyQualifiedName}:{arg}";
-        }
-    }
-
-    public string UniqueID => field ??= this.ComputeUniqueID();
-
-    private string ComputeUniqueID()
-    {
-        try
-        {
-            return UniqueIDGenerator.ForTestCase(this.TestMethod.UniqueID, testMethodGenericTypes: null, this.TestMethodArguments);
-        }
-        catch (ArgumentException)
-        {
-            // ForTestCase serializes the arguments with xunit's serializer, which rejects types it
-            // doesn't understand. A scenario's arguments are ordinary domain objects, so fall back
-            // to hashing each one on its own terms rather than failing discovery.
-            using var g = new UniqueIDGenerator();
-            g.Add(this.TestMethod.UniqueID);
-            foreach (var arg in this.TestMethodArguments!)
-            {
-                g.Add(SerializeArgForId(arg));
-            }
-
-            return g.Compute();
-        }
-    }
-
-    public string TestCaseDisplayName =>
-        this.testCaseDisplayName ?? this.TestMethod.GetDisplayName(this.TestMethod.MethodName, null, this.TestMethodArguments, null);
-
-    public IXunitTestClass TestClass => this.TestMethod.TestClass;
-    public IXunitTestCollection TestCollection => this.TestMethod.TestClass.TestCollection;
-
-    public int TestClassMetadataToken => this.TestMethod.TestClass.Class.MetadataToken;
-    public string TestClassName => this.TestMethod.TestClass.TestClassName;
-    public string TestClassSimpleName => this.TestMethod.TestClass.TestClassSimpleName;
-
-    public int TestMethodMetadataToken => this.TestMethod.Method.MetadataToken;
-    public string TestMethodName => this.TestMethod.MethodName;
-
-    public string[] TestMethodParameterTypesVSTest =>
-        field ??=
-            [.. this.TestMethod.Parameters.Select(p => p.ParameterType.FullName ?? p.ParameterType.Name)];
-
-    public string TestMethodReturnTypeVSTest => this.TestMethod.ReturnType.FullName ?? this.TestMethod.ReturnType.Name;
-
-    public int TestMethodArity =>
-        this.TestMethod.Method.IsGenericMethodDefinition
-            ? this.TestMethod.Method.GetGenericArguments().Length
-            : 0;
-
-    public string? SkipReason { get; private set; }
-    public Type? SkipType { get; private set; }
-
-    public string? SkipUnless { get; private set; }
-
-    public string? SkipWhen { get; private set; }
-
-    public Type[]? SkipExceptions { get; private set; }
-
-    public int Timeout { get; private set; }
-
-    public bool DisableParallelization { get; private set; }
-
-    public string? SourceFilePath { get; private set; }
-    public int? SourceLineNumber { get; private set; }
-
-    public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits => this.TestMethod.Traits;
-
-    public ValueTask<IReadOnlyCollection<IXunitTest>> CreateTests() => new([]);
-    public void PreInvoke() { }
-    public void PostInvoke() { }
-
-    ITestClass ITestCase.TestClass => this.TestClass;
-    ITestCollection ITestCase.TestCollection => this.TestCollection;
-    ITestMethod ITestCase.TestMethod => this.TestMethod;
-    ICoreTestClass ICoreTestCase.TestClass => this.TestClass;
-    ICoreTestCollection ICoreTestCase.TestCollection => this.TestCollection;
-    ICoreTestMethod ICoreTestCase.TestMethod => this.TestMethod;
-    bool ITestCaseMetadata.Explicit => this.isExplicit;
-    string? ITestCaseMetadata.SkipReason => this.SkipReason;
-    int? ITestCaseMetadata.TestClassMetadataToken => this.TestClassMetadataToken;
-    string? ITestCaseMetadata.TestClassNamespace => this.TestMethod.TestClass.Class.Namespace;
-    int? ITestCaseMetadata.TestMethodArity => this.MethodArityOrNull;
-    int? ITestCaseMetadata.TestMethodMetadataToken => this.TestMethodMetadataToken;
-    string[] ITestCaseMetadata.TestMethodParameterTypesVSTest => this.TestMethodParameterTypesVSTest;
-    string ITestCaseMetadata.TestMethodReturnTypeVSTest => this.TestMethodReturnTypeVSTest;
+    // Steps are the reported tests, and they only exist once the scenario method has run. The
+    // runner creates them as it goes, so there is nothing to enumerate up front.
+    public override ValueTask<IReadOnlyCollection<IXunitTest>> CreateTests() => new([]);
 
     bool IXunitDelayEnumeratedTestCase.SkipTestWithoutData => this.skipTestWithoutData;
 
     internal bool IsDelayEnumerated => this.isDelayEnumerated;
-
-    public void Serialize(IXunitSerializationInfo info)
-    {
-        info.AddValue("tm", this.TestMethod);
-        info.AddValue("dn", this.testCaseDisplayName);
-        info.AddValue("sr", this.SkipReason);
-        info.AddValue("sf", this.SourceFilePath);
-        info.AddValue("sl", this.SourceLineNumber);
-        info.AddValue("de", this.isDelayEnumerated);
-        info.AddValue("swd", this.skipTestWithoutData);
-        info.AddValue("ex", this.isExplicit);
-        var skipExc = this.SkipExceptions?.Select(t => t.AssemblyQualifiedName ?? t.FullName ?? t.Name).ToArray();
-        info.AddValue("sx", skipExc);
-        info.AddValue("st", this.SkipType?.AssemblyQualifiedName ?? this.SkipType?.FullName);
-        info.AddValue("su", this.SkipUnless);
-        info.AddValue("sw", this.SkipWhen);
-        info.AddValue("to", this.Timeout);
-        info.AddValue("dp", this.DisableParallelization);
-        var argc = this.TestMethodArguments?.Length ?? -1;
-        info.AddValue("argc", argc);
-        if (this.TestMethodArguments is not null)
-        {
-            for (var i = 0; i < this.TestMethodArguments.Length; i++)
-            {
-                info.AddValue($"arg{i}", SerializationHelper.Instance.Serialize(this.TestMethodArguments[i]));
-            }
-        }
-    }
-
-    public void Deserialize(IXunitSerializationInfo info)
-    {
-        this.TestMethod = Guard.NotNull("Could not retrieve TestMethod from serialization", info.GetValue<IXunitTestMethod>("tm"));
-        this.testCaseDisplayName = info.GetValue<string?>("dn");
-        this.SkipReason = info.GetValue<string?>("sr");
-        this.SourceFilePath = info.GetValue<string?>("sf");
-        this.SourceLineNumber = info.GetValue<int?>("sl");
-        this.isDelayEnumerated = info.GetValue<bool>("de");
-        this.skipTestWithoutData = info.GetValue<bool>("swd");
-        this.isExplicit = info.GetValue<bool>("ex");
-        var skipExc = info.GetValue<string[]?>("sx");
-        this.SkipExceptions = skipExc?.Select(name => Type.GetType(name, throwOnError: true)!).ToArray();
-        var skipTypeName = info.GetValue<string?>("st");
-        this.SkipType = skipTypeName is null ? null : Type.GetType(skipTypeName, throwOnError: true);
-        this.SkipUnless = info.GetValue<string?>("su");
-        this.SkipWhen = info.GetValue<string?>("sw");
-        this.Timeout = info.GetValue<int>("to");
-        this.DisableParallelization = info.GetValue<bool>("dp");
-        var argc = info.GetValue<int>("argc");
-        if (argc >= 0)
-        {
-            this.TestMethodArguments = new object?[argc];
-            for (var i = 0; i < argc; i++)
-            {
-                this.TestMethodArguments[i] = SerializationHelper.Instance.Deserialize(info.GetValue<string>($"arg{i}")!);
-            }
-        }
-    }
 
     // A scenario's steps are an ordered narrative over shared state, so they always run
     // sequentially on this flow and parallelMode/scheduler are deliberately not consulted.
@@ -234,7 +74,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         ExecutionScheduler scheduler,
         FixtureMappingManager methodFixtureMappings)
     {
-        var explicitSkipReason = (@explicit: this.isExplicit, explicitOption) switch
+        var explicitSkipReason = (@explicit: this.Explicit, explicitOption) switch
         {
             (true, ExplicitOption.Off) => "Test is marked Explicit and was not selected to run",
             (false, ExplicitOption.Only) => "Only explicit tests were selected to run",
@@ -249,6 +89,20 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             cancellationTokenSource,
             constructorArguments,
             this.SkipReason ?? this.EvaluateConditionalSkip() ?? explicitSkipReason);
+    }
+
+    protected override void Serialize(IXunitSerializationInfo info)
+    {
+        base.Serialize(info);
+        info.AddValue("de", this.isDelayEnumerated);
+        info.AddValue("swd", this.skipTestWithoutData);
+    }
+
+    protected override void Deserialize(IXunitSerializationInfo info)
+    {
+        base.Deserialize(info);
+        this.isDelayEnumerated = info.GetValue<bool>("de");
+        this.skipTestWithoutData = info.GetValue<bool>("swd");
     }
 
     internal string? EvaluateConditionalSkip()
@@ -280,9 +134,42 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         return this.SkipReason ?? $"Conditional skip ({propertyName})";
     }
 
-    // GetParameters() clones an array on each call; the parameters are constant per test method.
-    internal ParameterInfo[] MethodParameters => field ??= this.TestMethod.Method.GetParameters();
+    private static string DefaultDisplayName(IXunitTestMethod testMethod, object?[]? testMethodArguments) =>
+        testMethod.GetDisplayName(testMethod.MethodName, label: null, testMethodArguments, methodGenericTypes: null);
 
-    // ITestCaseMetadata reports arity as absent (rather than zero) for non-generic methods.
-    private int? MethodArityOrNull => this.TestMethod.Method.IsGenericMethodDefinition ? this.TestMethodArity : null;
+    private static string ComputeUniqueID(IXunitTestMethod testMethod, object?[]? testMethodArguments)
+    {
+        try
+        {
+            return UniqueIDGenerator.ForTestCase(testMethod.UniqueID, testMethodGenericTypes: null, testMethodArguments);
+        }
+        catch (ArgumentException)
+        {
+            // ForTestCase serializes the arguments with xunit's serializer, which rejects types it
+            // doesn't understand. A scenario's arguments are ordinary domain objects, so fall back
+            // to hashing each one on its own terms rather than failing discovery.
+            using var g = new UniqueIDGenerator();
+            g.Add(testMethod.UniqueID);
+            foreach (var arg in testMethodArguments!)
+            {
+                g.Add(SerializeArgForId(arg));
+            }
+
+            return g.Compute();
+        }
+    }
+
+    // Falls back to a type-qualified ToString() when xUnit's serializer doesn't support the type,
+    // rather than throwing and preventing test discovery.
+    internal static string SerializeArgForId(object? arg)
+    {
+        try
+        {
+            return SerializationHelper.Instance.Serialize(arg);
+        }
+        catch (ArgumentException)
+        {
+            return arg is null ? ":null:" : $":{arg.GetType().AssemblyQualifiedName}:{arg}";
+        }
+    }
 }

@@ -70,9 +70,9 @@ internal static class ScenarioCaseRunner
             if (!constructorFailed)
             {
                 var invocationArguments = methodArguments;
-                var parameters = testCase.MethodParameters;
+                var parameters = testCase.TestMethod.Parameters;
                 var providedCount = invocationArguments?.Length ?? 0;
-                if (providedCount < parameters.Length)
+                if (providedCount < parameters.Count)
                 {
                     invocationArguments =
                     [
@@ -223,7 +223,7 @@ internal static class ScenarioCaseRunner
             displayName,
             testLabel: null,
             StepUniqueID(testCase, stepIndex, serializedRowArgs),
-            testCase.Traits,
+            ((ITestCaseMetadata)testCase).Traits,
             timeout: null,
             rowArgs ?? []);
 
