@@ -31,7 +31,7 @@ public void Adding_an_item_to_the_cart()
 Requires **.NET 10** and **xUnit.net v3** on the Microsoft.Testing.Platform runner.
 
 ```xml
-<PackageReference Include="bbv.LambdaTale.v3" Version="0.0.1-alpha.1" />
+<PackageReference Include="bbv.LambdaTale.v3" Version="0.0.1-beta.2" />
 ```
 
 Then write a scenario.
@@ -123,6 +123,7 @@ work is in the plumbing:
 2. Replace the `bbv.LambdaTale` package with `bbv.LambdaTale.v3` and the namespace with
    `LambdaTale.v3`.
 3. The static `Spec(...)` form from v2 is not available — use `"description".x(() => …)`.
+4. `[Example]` is not supported; use `[InlineData]` instead.
 
 ## How it works
 
