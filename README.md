@@ -19,9 +19,6 @@ public void Adding_an_item_to_the_cart()
 }
 ```
 
-> **Status: early / experimental (`0.0.1-alpha`).** Covered by tests, but pre-release,
-> not yet on NuGet, and subject to change.
-
 ## Highlights
 
 - Built on xUnit.net v3's own discovery/execution extensibility
@@ -36,8 +33,6 @@ Requires **.NET 10** and **xUnit.net v3** on the Microsoft.Testing.Platform runn
 ```xml
 <PackageReference Include="bbv.LambdaTale.v3" Version="0.0.1-alpha.1" />
 ```
-
-> Not yet on NuGet — reference the `LambdaTale.v3` project directly for now.
 
 Then write a scenario.
 
@@ -147,4 +142,4 @@ dotnet test
 
 ## License
 
-MIT (c) LambdaTale.v3 contributors. See [LICENSE](LICENSE).
+MIT ◎ LambdaTale.v3 contributors. See [LICENSE](https://github.com/bbvch/LambdaTale.v3/blob/main/LICENSE).
