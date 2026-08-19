@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using Xunit;
 using Xunit.Internal;
@@ -46,24 +45,25 @@ internal static class ScenarioCaseRunner
         {
             using var ctx = Scenario.Acquire();
 
-            var ctorStart = Stopwatch.StartNew();
             Exception? ctorFailure = null;
-            try
+            var ctorElapsed = await ExecutionTimer.MeasureAsync(() =>
             {
-                testClassInstance = CreateTestClassInstance(testCase.TestClass.Class, ctxt.ConstructorArguments, outputHelper);
-            }
-            catch (Exception ex)
-            {
-                ctorFailure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
-            }
-            finally
-            {
-                ctorStart.Stop();
-            }
+                try
+                {
+                    testClassInstance = CreateTestClassInstance(testCase.TestClass.Class, ctxt.ConstructorArguments, outputHelper);
+                }
+                catch (Exception ex)
+                {
+                    // The activator wraps whatever the constructor threw.
+                    ctorFailure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
+                }
+
+                return default;
+            });
 
             if (ctorFailure is not null)
             {
-                summary.Aggregate(await RunSyntheticStep(ctxt, "(Constructor)", stepIndex: 0, ctorFailure, ctorStart.Elapsed));
+                summary.Aggregate(await RunSyntheticStep(ctxt, "(Constructor)", stepIndex: 0, ctorFailure, ctorElapsed));
                 constructorFailed = true;
             }
 
@@ -298,25 +298,12 @@ internal static class ScenarioCaseRunner
 
     private static async ValueTask<(Exception? failure, TimeSpan elapsed)> DisposeTestClassInstance(object instance)
     {
-        var sw = Stopwatch.StartNew();
-        Exception? failure = null;
-        try
-        {
-            if (instance is IAsyncDisposable asyncDisposable)
-            {
-                await asyncDisposable.DisposeAsync();
-            }
-            else if (instance is IDisposable disposable)
-            {
-                disposable.Dispose();
-            }
-        }
-        catch (Exception ex)
-        {
-            failure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
-        }
+        var tracker = new DisposalTracker();
+        tracker.Add(instance);
 
-        sw.Stop();
-        return (failure, sw.Elapsed);
+        var aggregator = new ExceptionAggregator();
+        var elapsed = await ExecutionTimer.MeasureAsync(() => aggregator.RunAsync(tracker.DisposeAsync));
+
+        return (aggregator.ToException(), elapsed);
     }
 }
