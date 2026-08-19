@@ -46,19 +46,23 @@ internal static class ScenarioCaseRunner
             using var ctx = Scenario.Acquire();
 
             Exception? ctorFailure = null;
-            var ctorElapsed = await ExecutionTimer.MeasureAsync(() =>
+            var ctorElapsed = await ExecutionTimer.MeasureAsync(async () =>
             {
                 try
                 {
+                    // Assigned before initializing so a failing InitializeAsync still gets disposed.
                     testClassInstance = CreateTestClassInstance(testCase.TestClass.Class, ctxt.ConstructorArguments, outputHelper);
+
+                    if (testClassInstance is IAsyncLifetime asyncLifetime)
+                    {
+                        await asyncLifetime.InitializeAsync();
+                    }
                 }
                 catch (Exception ex)
                 {
                     // The activator wraps whatever the constructor threw.
                     ctorFailure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
                 }
-
-                return default;
             });
 
             if (ctorFailure is not null)
