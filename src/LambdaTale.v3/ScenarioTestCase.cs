@@ -161,7 +161,7 @@ public sealed class ScenarioTestCase : XunitTestCase, ISelfExecutingXunitTestCas
 
     // Falls back to a type-qualified ToString() when xUnit's serializer doesn't support the type,
     // rather than throwing and preventing test discovery.
-    internal static string SerializeArgForId(object? arg)
+    private static string SerializeArgForId(object? arg)
     {
         try
         {

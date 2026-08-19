@@ -63,7 +63,7 @@ internal static class ScenarioCaseRunner
 
             if (ctorFailure is not null)
             {
-                summary.Aggregate(await RunSyntheticStep(ctxt, "(Constructor)", stepIndex: 0, ctorFailure, ctorElapsed));
+                summary.Aggregate(await RunSyntheticStep(ctxt, "(Constructor)", ctorFailure, ctorElapsed));
                 constructorFailed = true;
             }
 
@@ -105,7 +105,7 @@ internal static class ScenarioCaseRunner
                     var (disposeFailure, disposeElapsed) = await DisposeTestClassInstance(testClassInstance);
                     if (disposeFailure != null)
                     {
-                        summary.Aggregate(await RunSyntheticStep(ctxt, "(Dispose)", disposeOffset, disposeFailure, disposeElapsed));
+                        summary.Aggregate(await RunSyntheticStep(ctxt, "(Dispose)", disposeFailure, disposeElapsed));
                         // fall through — do NOT return (would suppress in-flight exception)
                     }
                     else
@@ -119,7 +119,7 @@ internal static class ScenarioCaseRunner
                     // Dispose processing threw unexpectedly (e.g. from RunStepLoop or message bus). Record to summary
                     // but do not re-throw — this is a finally block, re-throwing would swallow any
                     // in-flight exception from the try block.
-                    summary.Aggregate(await RunSyntheticStep(ctxt, "(Dispose)", disposeOffset, tdEx, TimeSpan.Zero));
+                    summary.Aggregate(await RunSyntheticStep(ctxt, "(Dispose)", tdEx, TimeSpan.Zero));
                 }
             }
         }
@@ -129,7 +129,7 @@ internal static class ScenarioCaseRunner
 
     public static ValueTask<RunSummary> RunSkippedCase(ScenarioTestCaseRunnerContext ctxt, string skipReason) =>
         ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(
-            SyntheticStep(ctxt.TestCase, stepIndex: 0, ctxt.TestCase.TestCaseDisplayName),
+            SyntheticStep(ctxt, ctxt.TestCase.TestCaseDisplayName),
             ctxt,
             new TestOutputHelper(),
             static () => default,
@@ -141,11 +141,10 @@ internal static class ScenarioCaseRunner
     public static ValueTask<RunSummary> RunSyntheticStep(
         ScenarioTestCaseRunnerContext ctxt,
         string displayName,
-        int stepIndex,
         Exception failure,
         TimeSpan elapsed) =>
         ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(
-            SyntheticStep(ctxt.TestCase, stepIndex, displayName),
+            SyntheticStep(ctxt, displayName),
             ctxt,
             new TestOutputHelper(),
             () => ValueTask.FromException(failure),
@@ -161,16 +160,10 @@ internal static class ScenarioCaseRunner
         var summary = new RunSummary();
         var stopped = false;
 
-        // Row arguments are identical for every step, so serialize them once per row rather than
-        // re-serializing inside each step's UniqueID.
-        var serializedRowArgs = rowArgs is { Length: > 0 }
-            ? Array.ConvertAll(rowArgs, static arg => ScenarioTestCase.SerializeArgForId(arg))
-            : null;
-
         for (var i = 0; i < steps.Count; i++)
         {
             var td = steps[i];
-            var step = Step(ctxt.TestCase, stepIndexOffset + i, td.Tale, rowArgs, serializedRowArgs);
+            var step = Step(ctxt, stepIndexOffset + i, td.Tale, rowArgs);
             var stepSummary = await ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(
                 step,
                 ctxt,
@@ -190,60 +183,39 @@ internal static class ScenarioCaseRunner
     }
 
     private static XunitTest Step(
-        ScenarioTestCase testCase,
-        int stepIndex,
+        ScenarioTestCaseRunnerContext ctxt,
+        int displayIndex,
         string tale,
-        object?[]? rowArgs,
-        IReadOnlyList<string>? serializedRowArgs)
+        object?[]? rowArgs)
     {
         var displayName = rowArgs is { Length: > 0 }
-            ? $"({string.Join(", ", rowArgs.Select(FormatArg))}) [{stepIndex}] {tale}"
-            : $"[{stepIndex}] {tale}";
+            ? $"({string.Join(", ", rowArgs.Select(FormatArg))}) [{displayIndex}] {tale}"
+            : $"[{displayIndex}] {tale}";
 
-        return NewStep(testCase, stepIndex, displayName, rowArgs, serializedRowArgs);
+        return NewStep(ctxt, displayName, rowArgs);
     }
 
-    private static XunitTest SyntheticStep(ScenarioTestCase testCase, int stepIndex, string displayName) =>
-        NewStep(testCase, stepIndex, displayName, rowArgs: null, serializedRowArgs: null);
+    private static XunitTest SyntheticStep(ScenarioTestCaseRunnerContext ctxt, string displayName) =>
+        NewStep(ctxt, displayName, rowArgs: null);
 
     private static XunitTest NewStep(
-        ScenarioTestCase testCase,
-        int stepIndex,
+        ScenarioTestCaseRunnerContext ctxt,
         string displayName,
-        object?[]? rowArgs,
-        IReadOnlyList<string>? serializedRowArgs) =>
-        new(testCase,
-            testCase.TestMethod,
-            testCase.DisableParallelization,
+        object?[]? rowArgs) =>
+        new(ctxt.TestCase,
+            ctxt.TestCase.TestMethod,
             @explicit: null,
             skipReason: null,
             skipType: null,
             skipUnless: null,
             skipWhen: null,
             displayName,
-            testLabel: null,
-            StepUniqueID(testCase, stepIndex, serializedRowArgs),
-            ((ITestCaseMetadata)testCase).Traits,
+            ctxt.NextTestIndex(),
+            ((ITestCaseMetadata)ctxt.TestCase).Traits,
             timeout: null,
-            rowArgs ?? []);
-
-    private static string StepUniqueID(ScenarioTestCase testCase, int stepIndex, IReadOnlyList<string>? serializedRowArgs)
-    {
-        if (serializedRowArgs is null)
-        {
-            return UniqueIDGenerator.ForTest(testCase.UniqueID, stepIndex);
-        }
-
-        using var generator = new UniqueIDGenerator();
-        generator.Add(testCase.UniqueID);
-        generator.Add(stepIndex.ToString());
-        foreach (var serialized in serializedRowArgs)
-        {
-            generator.Add(serialized);
-        }
-
-        return generator.Compute();
-    }
+            rowArgs ?? [],
+            testLabel: null,
+            ctxt.TestCase.DisableParallelization);
 
     private static string FormatArg(object? arg) => arg switch
     {

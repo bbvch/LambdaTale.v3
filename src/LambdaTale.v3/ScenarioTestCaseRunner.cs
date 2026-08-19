@@ -13,7 +13,14 @@ internal sealed class ScenarioTestCaseRunnerContext(
     string? skipReason)
     : TestCaseRunnerBaseContext<ScenarioTestCase>(testCase, explicitOption, messageBus, aggregator, cancellationTokenSource)
 {
+    private int nextTestIndex;
+
     public object?[] ConstructorArguments => constructorArguments;
+
+    // Every step of a case is reported as its own test, so each needs a distinct index. The index
+    // in a step's display name restarts for each data row; this one must not, or the steps of two
+    // rows of a delay-enumerated case would share unique IDs.
+    public int NextTestIndex() => this.nextTestIndex++;
 
     // The static reason merged with the conditional and explicit-option ones, resolved before the
     // run starts so a malformed [Scenario(SkipUnless = ...)] still surfaces to the caller.
@@ -43,7 +50,7 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
     {
         if (exception is not null)
         {
-            return await ScenarioCaseRunner.RunSyntheticStep(ctxt, "(Startup)", stepIndex: 0, exception, TimeSpan.Zero);
+            return await ScenarioCaseRunner.RunSyntheticStep(ctxt, "(Startup)", exception, TimeSpan.Zero);
         }
 
         if (ctxt.SkipReason is not null)
@@ -65,7 +72,6 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
         return await ScenarioCaseRunner.RunSyntheticStep(
             ctxt,
             "(Timeout)",
-            stepIndex: 0,
             new TimeoutException($"Test exceeded timeout of {timeout}ms"),
             TimeSpan.FromMilliseconds(timeout));
     }
