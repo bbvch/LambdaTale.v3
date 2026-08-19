@@ -191,7 +191,7 @@ internal static class ScenarioCaseRunner
         string tale,
         object?[]? rowArgs)
     {
-        var stepName = rowArgs is { Length: > 0 }
+        var stepName = ctxt.TestCase.IsDelayEnumerated && rowArgs is { Length: > 0 }
             ? $"({string.Join(", ", rowArgs.Select(FormatArg))}) [{displayIndex}] {tale}"
             : $"[{displayIndex}] {tale}";
         var displayName = QualifiedStepName(ctxt, stepName);

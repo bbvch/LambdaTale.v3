@@ -135,7 +135,7 @@ public sealed class ScenarioTestCase : XunitTestCase, ISelfExecutingXunitTestCas
     }
 
     private static string DefaultDisplayName(IXunitTestMethod testMethod, object?[]? testMethodArguments) =>
-        testMethod.GetDisplayName(testMethod.MethodName, label: null, testMethodArguments, methodGenericTypes: null);
+        ScenarioDisplayName.ForTestCase(testMethod, testMethod.MethodName, label: null, testMethodArguments);
 
     private static string ComputeUniqueID(IXunitTestMethod testMethod, object?[]? testMethodArguments)
     {

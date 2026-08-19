@@ -48,6 +48,16 @@ public class ScenarioDiscovererTests
     }
 
     [AttributeUsage(AttributeTargets.Method)]
+    private sealed class ValuelessRowDataAttribute : DataAttribute
+    {
+        public override bool SupportsDiscoveryEnumeration() => true;
+
+        public override ValueTask<IReadOnlyCollection<ITheoryDataRow>> GetData(
+            MethodInfo testMethod, DisposalTracker disposalTracker) =>
+            new([new TheoryDataRow()]);
+    }
+
+    [AttributeUsage(AttributeTargets.Method)]
     private sealed class DelayEnumeratedDataAttribute : DataAttribute
     {
         public override bool SupportsDiscoveryEnumeration() => false;
@@ -150,6 +160,29 @@ public class ScenarioDiscovererTests
     }
 
     [Fact]
+    public async Task DiscoverOmitsParametersTheDataRowDoesNotSupplyFromTheDisplayName()
+    {
+        var testMethod = FixtureMethod.For<VariableParametersFixture>(nameof(VariableParametersFixture.Method));
+        var result = await new ScenarioDiscoverer().Discover(
+            new SimpleDiscoveryOptions(), testMethod, new ScenarioAttribute());
+
+        var testCase = Assert.IsType<ScenarioTestCase>(Assert.Single(result));
+        Assert.DoesNotContain("???", testCase.TestCaseDisplayName, StringComparison.Ordinal);
+        Assert.EndsWith("Method(value: 5)", testCase.TestCaseDisplayName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DiscoverOmitsTheArgumentListEntirelyWhenEveryParameterIsAVariable()
+    {
+        var testMethod = FixtureMethod.For<AllVariableParametersFixture>(nameof(AllVariableParametersFixture.Method));
+        var result = await new ScenarioDiscoverer().Discover(
+            new SimpleDiscoveryOptions(), testMethod, new ScenarioAttribute());
+
+        var testCase = Assert.IsType<ScenarioTestCase>(Assert.Single(result));
+        Assert.EndsWith("Method", testCase.TestCaseDisplayName, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DiscoverReturnsDelayEnumeratedCaseWhenDataDoesNotSupportEnumeration()
     {
         var testMethod = FixtureMethod.For<DelayEnumeratedFixture>(nameof(DelayEnumeratedFixture.Method));
@@ -189,5 +222,17 @@ public class ScenarioDiscovererTests
     {
         [DelayEnumeratedData]
         public void Method(int value) { }
+    }
+
+    private sealed class VariableParametersFixture
+    {
+        [InlineData(5)]
+        public void Method(int value, string varAlpha, string varBeta) { }
+    }
+
+    private sealed class AllVariableParametersFixture
+    {
+        [ValuelessRowData]
+        public void Method(string varAlpha, string varBeta) { }
     }
 }

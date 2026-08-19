@@ -95,7 +95,8 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
         return new ScenarioTestCase(
             testMethod,
             testMethodArguments: args,
-            testCaseDisplayName: displayNameOverride ?? testMethod.GetDisplayName(details.TestCaseDisplayName, label, args, null),
+            testCaseDisplayName: displayNameOverride
+                                 ?? ScenarioDisplayName.ForTestCase(testMethod, details.TestCaseDisplayName, label, args),
             skipReason: skipReasonOverride ?? details.SkipReason,
             sourceFilePath: details.SourceFilePath,
             sourceLineNumber: details.SourceLineNumber,

@@ -10,6 +10,7 @@ internal static class ScenarioTestRunner
 {
     public static async Task<CapturingMessageBus> RunFixture<TFixture>(
         string methodName,
+        object?[]? testMethodArguments = null,
         string? testCaseDisplayName = null,
         string? skipReason = null,
         bool @explicit = false,
@@ -26,6 +27,7 @@ internal static class ScenarioTestRunner
         var testMethod = FixtureMethod.For<TFixture>(methodName);
         var testCase = new ScenarioTestCase(
             testMethod,
+            testMethodArguments: testMethodArguments,
             testCaseDisplayName: testCaseDisplayName,
             skipReason: skipReason,
             isExplicit: @explicit,
