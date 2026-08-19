@@ -12,7 +12,7 @@ internal static class FixtureMethod
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             ?? throw new ArgumentException($"Method '{methodName}' not found on {type.FullName}", nameof(methodName));
 
-        var assembly = new XunitTestAssembly(type.Assembly);
+        var assembly = new XunitTestAssembly(type.Assembly, configFilePath: null);
         var collection = new XunitTestCollection(
             assembly,
             collectionDefinition: null,

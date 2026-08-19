@@ -85,3 +85,27 @@ public class AsyncDisposableTests : IAsyncDisposable
         "Then constructor steps ran before scenario".x(() => Assert.Equal(["c", "scenario"], this.log));
     }
 }
+
+public class AsyncLifetimeTests : IAsyncLifetime
+{
+    private readonly List<string> log = [];
+
+    public async ValueTask InitializeAsync()
+    {
+        await Task.Yield();
+        "Given async initialization".x(() => this.log.Add("init"));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Task.Yield();
+        this.log.Add("dispose");
+    }
+
+    [Scenario]
+    public void InitializeAsyncRunsBeforeTheScenario()
+    {
+        "When the scenario runs".x(() => this.log.Add("scenario"));
+        "Then initialization ran first".x(() => Assert.Equal(["init", "scenario"], this.log));
+    }
+}

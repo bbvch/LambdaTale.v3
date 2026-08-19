@@ -16,71 +16,44 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             var result = new List<IXunitTestCase>();
             var dataAttributes = testMethod.DataAttributes;
 
-            string baseDisplayName;
-            if (attr.DisplayName is not null)
-            {
-                baseDisplayName = attr.DisplayName;
-            }
-            else
-            {
-                var methodDisplay = discoveryOptions.MethodDisplayOrDefault();
-                var formatter = new DisplayNameFormatter(methodDisplay, discoveryOptions.MethodDisplayOptionsOrDefault());
-                baseDisplayName = methodDisplay == TestMethodDisplay.ClassAndMethod
-                    ? formatter.Format($"{testMethod.TestClass.TestClassName}.{testMethod.MethodName}")
-                    : formatter.Format(testMethod.MethodName);
-            }
-
-            // Case 1: no data attributes
             if (dataAttributes.Count == 0)
             {
                 if (!attr.SkipTestWithoutData)
                 {
-                    result.Add(MakeTestCase(testMethod, null, testMethod.GetDisplayName(baseDisplayName, null, null, null), attr.Skip, attr));
+                    result.Add(MakeTestCase(discoveryOptions, testMethod, attr, args: null));
                 }
 
                 return result;
             }
 
-            // Check if all data attributes support enumeration at discovery time
             if (!dataAttributes.All(d => d.SupportsDiscoveryEnumeration()))
             {
-                // Case 3: delay-enumerated — all data resolved at execution time
-                result.Add(new ScenarioTestCase(
-                    testMethod,
-                    testMethodArguments: null,
-                    testCaseDisplayName: testMethod.GetDisplayName(baseDisplayName, null, null, null),
-                    skipReason: attr.Skip,
-                    sourceFilePath: attr.SourceFilePath,
-                    sourceLineNumber: attr.SourceLineNumber,
-                    isDelayEnumerated: true,
-                    skipTestWithoutData: attr.SkipTestWithoutData,
-                    isExplicit: attr.Explicit,
-                    skipExceptions: attr.SkipExceptions,
-                    skipType: attr.SkipType,
-                    skipUnless: attr.SkipUnless,
-                    skipWhen: attr.SkipWhen,
-                    timeout: attr.Timeout));
+                result.Add(MakeTestCase(discoveryOptions, testMethod, attr, args: null, isDelayEnumerated: true));
                 return result;
             }
 
-            // Case 2: enumerate at discovery time
             await using var disposalTracker = new DisposalTracker();
             foreach (var dataAttr in dataAttributes)
             {
                 var rows = await dataAttr.GetData(testMethod.Method, disposalTracker);
                 foreach (var row in rows)
                 {
-                    var args = row.GetData();
-                    var displayName = row.TestDisplayName
-                                      ?? testMethod.GetDisplayName(baseDisplayName, row.Label, args, null);
-                    var rowSkip = row.Skip ?? attr.Skip;
-                    result.Add(MakeTestCase(testMethod, args, displayName, rowSkip, attr));
+                    result.Add(MakeTestCase(
+                        discoveryOptions,
+                        testMethod,
+                        attr,
+                        row.GetData(),
+                        label: row.Label,
+                        displayNameOverride: row.TestDisplayName,
+                        skipReasonOverride: row.Skip,
+                        disableParallelization: row.DisableParallelization ?? dataAttr.DisableParallelization));
                 }
             }
 
             if (result.Count == 0 && attr.SkipTestWithoutData)
             {
-                result.Add(MakeTestCase(testMethod, null, null, "No data found for scenario", attr));
+                result.Add(MakeTestCase(
+                    discoveryOptions, testMethod, attr, args: null, skipReasonOverride: "No data found for scenario"));
             }
 
             return result;
@@ -103,21 +76,38 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
     }
 
     private static ScenarioTestCase MakeTestCase(
+        ITestFrameworkDiscoveryOptions discoveryOptions,
         IXunitTestMethod testMethod,
+        ScenarioAttribute attr,
         object?[]? args,
-        string? displayName,
-        string? skipReason,
-        ScenarioAttribute attr) =>
-        new(testMethod,
+        string? label = null,
+        string? displayNameOverride = null,
+        string? skipReasonOverride = null,
+        bool isDelayEnumerated = false,
+        bool disableParallelization = false)
+    {
+        // Asking for the details without the arguments yields the base display name and skips the
+        // unique ID GetTestCaseDetails would derive from them — it serializes them with xunit's
+        // serializer, which rejects the ordinary domain objects a scenario takes. ScenarioTestCase
+        // derives its own ID, and the arguments only otherwise affect the display name.
+        var details = TestIntrospectionHelper.GetTestCaseDetails(discoveryOptions, testMethod, attr);
+
+        return new ScenarioTestCase(
+            testMethod,
             testMethodArguments: args,
-            testCaseDisplayName: displayName,
-            skipReason: skipReason,
-            sourceFilePath: attr.SourceFilePath,
-            sourceLineNumber: attr.SourceLineNumber,
-            isExplicit: attr.Explicit,
-            skipExceptions: attr.SkipExceptions,
-            skipType: attr.SkipType,
-            skipUnless: attr.SkipUnless,
-            skipWhen: attr.SkipWhen,
-            timeout: attr.Timeout);
+            testCaseDisplayName: displayNameOverride
+                                 ?? ScenarioDisplayName.ForTestCase(testMethod, details.TestCaseDisplayName, label, args),
+            skipReason: skipReasonOverride ?? details.SkipReason,
+            sourceFilePath: details.SourceFilePath,
+            sourceLineNumber: details.SourceLineNumber,
+            isDelayEnumerated: isDelayEnumerated,
+            skipTestWithoutData: attr.SkipTestWithoutData,
+            isExplicit: details.Explicit,
+            skipExceptions: details.SkipExceptions,
+            skipType: details.SkipType,
+            skipUnless: details.SkipUnless,
+            skipWhen: details.SkipWhen,
+            timeout: details.Timeout,
+            disableParallelization: disableParallelization);
+    }
 }

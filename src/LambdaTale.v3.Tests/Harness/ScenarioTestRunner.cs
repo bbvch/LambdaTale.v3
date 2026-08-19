@@ -10,6 +10,7 @@ internal static class ScenarioTestRunner
 {
     public static async Task<CapturingMessageBus> RunFixture<TFixture>(
         string methodName,
+        object?[]? testMethodArguments = null,
         string? testCaseDisplayName = null,
         string? skipReason = null,
         bool @explicit = false,
@@ -26,6 +27,7 @@ internal static class ScenarioTestRunner
         var testMethod = FixtureMethod.For<TFixture>(methodName);
         var testCase = new ScenarioTestCase(
             testMethod,
+            testMethodArguments: testMethodArguments,
             testCaseDisplayName: testCaseDisplayName,
             skipReason: skipReason,
             isExplicit: @explicit,
@@ -36,12 +38,18 @@ internal static class ScenarioTestRunner
             timeout: timeout,
             isDelayEnumerated: isDelayEnumerated);
 
+        await using var scheduler = ExecutionScheduler.CreateUnlimited();
+        await using var methodFixtures = new FixtureMappingManager("Method");
+
         await testCase.Run(
             explicitOption,
             bus,
             constructorArguments: constructorArguments ?? [],
             new ExceptionAggregator(),
-            new CancellationTokenSource());
+            new CancellationTokenSource(),
+            ParallelMode.None,
+            scheduler,
+            methodFixtures);
         return bus;
     }
 }
