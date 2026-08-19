@@ -18,8 +18,6 @@ internal sealed class ScenarioTestCaseRunnerContext(
     // The static reason merged with the conditional and explicit-option ones, resolved before the
     // run starts so a malformed [Scenario(SkipUnless = ...)] still surfaces to the caller.
     public string? SkipReason => skipReason;
-
-    public bool Explicit => ((ITestCaseMetadata)this.TestCase).Explicit;
 }
 
 internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCaseRunnerContext, ScenarioTestCase>

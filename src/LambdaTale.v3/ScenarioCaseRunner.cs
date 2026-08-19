@@ -129,7 +129,7 @@ internal static class ScenarioCaseRunner
 
     public static ValueTask<RunSummary> RunSkippedCase(ScenarioTestCaseRunnerContext ctxt, string skipReason) =>
         ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(
-            ScenarioStep.Synthetic(ctxt.TestCase, stepIndex: 0, ctxt.TestCase.TestCaseDisplayName),
+            SyntheticStep(ctxt.TestCase, stepIndex: 0, ctxt.TestCase.TestCaseDisplayName),
             ctxt,
             new TestOutputHelper(),
             static () => default,
@@ -145,7 +145,7 @@ internal static class ScenarioCaseRunner
         Exception failure,
         TimeSpan elapsed) =>
         ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(
-            ScenarioStep.Synthetic(ctxt.TestCase, stepIndex, displayName),
+            SyntheticStep(ctxt.TestCase, stepIndex, displayName),
             ctxt,
             new TestOutputHelper(),
             () => ValueTask.FromException(failure),
@@ -170,7 +170,7 @@ internal static class ScenarioCaseRunner
         for (var i = 0; i < steps.Count; i++)
         {
             var td = steps[i];
-            var step = new ScenarioStep(ctxt.TestCase, stepIndexOffset + i, td.Tale, rowArgs, serializedRowArgs);
+            var step = Step(ctxt.TestCase, stepIndexOffset + i, td.Tale, rowArgs, serializedRowArgs);
             var stepSummary = await ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(
                 step,
                 ctxt,
@@ -188,6 +188,69 @@ internal static class ScenarioCaseRunner
 
         return summary;
     }
+
+    private static XunitTest Step(
+        ScenarioTestCase testCase,
+        int stepIndex,
+        string tale,
+        object?[]? rowArgs,
+        IReadOnlyList<string>? serializedRowArgs)
+    {
+        var displayName = rowArgs is { Length: > 0 }
+            ? $"({string.Join(", ", rowArgs.Select(FormatArg))}) [{stepIndex}] {tale}"
+            : $"[{stepIndex}] {tale}";
+
+        return NewStep(testCase, stepIndex, displayName, rowArgs, serializedRowArgs);
+    }
+
+    private static XunitTest SyntheticStep(ScenarioTestCase testCase, int stepIndex, string displayName) =>
+        NewStep(testCase, stepIndex, displayName, rowArgs: null, serializedRowArgs: null);
+
+    private static XunitTest NewStep(
+        ScenarioTestCase testCase,
+        int stepIndex,
+        string displayName,
+        object?[]? rowArgs,
+        IReadOnlyList<string>? serializedRowArgs) =>
+        new(testCase,
+            testCase.TestMethod,
+            testCase.DisableParallelization,
+            @explicit: null,
+            skipReason: null,
+            skipType: null,
+            skipUnless: null,
+            skipWhen: null,
+            displayName,
+            testLabel: null,
+            StepUniqueID(testCase, stepIndex, serializedRowArgs),
+            testCase.Traits,
+            timeout: null,
+            rowArgs ?? []);
+
+    private static string StepUniqueID(ScenarioTestCase testCase, int stepIndex, IReadOnlyList<string>? serializedRowArgs)
+    {
+        if (serializedRowArgs is null)
+        {
+            return UniqueIDGenerator.ForTest(testCase.UniqueID, stepIndex);
+        }
+
+        using var generator = new UniqueIDGenerator();
+        generator.Add(testCase.UniqueID);
+        generator.Add(stepIndex.ToString());
+        foreach (var serialized in serializedRowArgs)
+        {
+            generator.Add(serialized);
+        }
+
+        return generator.Compute();
+    }
+
+    private static string FormatArg(object? arg) => arg switch
+    {
+        null => "null",
+        string s => $"\"{s}\"",
+        _ => arg.ToString() ?? "null",
+    };
 
     private static ValueTask InvokeTale(TaleBody lambda)
     {

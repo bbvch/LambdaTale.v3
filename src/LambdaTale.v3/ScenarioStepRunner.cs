@@ -5,13 +5,13 @@ using Xunit.v3;
 namespace LambdaTale.v3;
 
 internal sealed class ScenarioStepRunnerContext(
-    ScenarioStep step,
+    XunitTest step,
     ScenarioTestCaseRunnerContext caseContext,
     TestOutputHelper outputHelper,
     Func<ValueTask> body,
     string? skipReason = null,
     TimeSpan? elapsedOverride = null)
-    : TestRunnerBaseContext<ScenarioStep>(
+    : TestRunnerBaseContext<XunitTest>(
         step,
         caseContext.MessageBus,
         skipReason,
@@ -20,10 +20,6 @@ internal sealed class ScenarioStepRunnerContext(
         caseContext.CancellationTokenSource)
 {
     public TestOutputHelper OutputHelper => outputHelper;
-
-    public bool Explicit => caseContext.Explicit;
-
-    public int Timeout => caseContext.TestCase.Timeout;
 
     // TestRunnerBase discards the elapsed time of a RunTest that throws, so a failing body has to
     // reach the aggregator rather than the caller.
@@ -43,7 +39,7 @@ internal sealed class ScenarioStepRunnerContext(
             : base.GetSkipReason(exception);
 }
 
-internal sealed class ScenarioStepRunner : TestRunnerBase<ScenarioStepRunnerContext, ScenarioStep>
+internal sealed class ScenarioStepRunner : TestRunnerBase<ScenarioStepRunnerContext, XunitTest>
 {
     public static ScenarioStepRunner Instance { get; } = new();
 
@@ -65,7 +61,7 @@ internal sealed class ScenarioStepRunner : TestRunnerBase<ScenarioStepRunnerCont
         new(TestContext.Current.Warnings?.ToArray());
 
     protected override ValueTask<bool> OnTestStarting(ScenarioStepRunnerContext ctxt) =>
-        this.OnTestStarting(ctxt, ctxt.Explicit, ctxt.Timeout);
+        this.OnTestStarting(ctxt, ctxt.Test.Explicit, ctxt.Test.Timeout);
 
     protected override ValueTask<TimeSpan> RunTest(ScenarioStepRunnerContext ctxt) => ctxt.RunBody();
 
