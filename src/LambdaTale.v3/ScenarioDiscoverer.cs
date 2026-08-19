@@ -59,8 +59,7 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
                     skipType: attr.SkipType,
                     skipUnless: attr.SkipUnless,
                     skipWhen: attr.SkipWhen,
-                    timeout: attr.Timeout,
-                    disableParallelization: attr.DisableParallelization));
+                    timeout: attr.Timeout));
                 return result;
             }
 
@@ -75,7 +74,13 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
                     var displayName = row.TestDisplayName
                                       ?? testMethod.GetDisplayName(baseDisplayName, row.Label, args, null);
                     var rowSkip = row.Skip ?? attr.Skip;
-                    result.Add(MakeTestCase(testMethod, args, displayName, rowSkip, attr));
+                    result.Add(MakeTestCase(
+                        testMethod,
+                        args,
+                        displayName,
+                        rowSkip,
+                        attr,
+                        row.DisableParallelization ?? dataAttr.DisableParallelization));
                 }
             }
 
@@ -108,7 +113,8 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
         object?[]? args,
         string? displayName,
         string? skipReason,
-        ScenarioAttribute attr) =>
+        ScenarioAttribute attr,
+        bool disableParallelization = false) =>
         new(testMethod,
             testMethodArguments: args,
             testCaseDisplayName: displayName,
@@ -121,5 +127,5 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             skipUnless: attr.SkipUnless,
             skipWhen: attr.SkipWhen,
             timeout: attr.Timeout,
-            disableParallelization: attr.DisableParallelization);
+            disableParallelization: disableParallelization);
 }
