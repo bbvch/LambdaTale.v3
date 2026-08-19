@@ -1,6 +1,5 @@
 using System.Reflection;
 using Xunit;
-using Xunit.Internal;
 using Xunit.Sdk;
 using Xunit.v3;
 
@@ -196,30 +195,47 @@ internal static class ScenarioCaseRunner
             ? $"({string.Join(", ", rowArgs.Select(FormatArg))}) [{displayIndex}] {tale}"
             : $"[{displayIndex}] {tale}";
 
-        return NewStep(ctxt, displayName, rowArgs);
+        // Folds the row's own arguments into the ID (not just its position) so a delay-enumerated
+        // scenario's step IDs stay stable across runs even if the data source reorders or resizes.
+        var uniqueId = ComputeStepUniqueID(ctxt.TestCase, displayIndex, rowArgs);
+        return NewStep(ctxt, displayName, uniqueId, rowArgs);
     }
 
     private static XunitTest SyntheticStep(ScenarioTestCaseRunnerContext ctxt, string displayName) =>
-        NewStep(ctxt, displayName, rowArgs: null);
+        NewStep(ctxt, displayName, UniqueIDGenerator.ForTest(ctxt.TestCase.UniqueID, ctxt.NextTestIndex()), rowArgs: null);
 
     private static XunitTest NewStep(
         ScenarioTestCaseRunnerContext ctxt,
         string displayName,
+        string uniqueId,
         object?[]? rowArgs) =>
         new(ctxt.TestCase,
             ctxt.TestCase.TestMethod,
+            ctxt.TestCase.DisableParallelization,
             @explicit: null,
             skipReason: null,
             skipType: null,
             skipUnless: null,
             skipWhen: null,
             displayName,
-            ctxt.NextTestIndex(),
-            ((ITestCaseMetadata)ctxt.TestCase).Traits,
-            timeout: null,
-            rowArgs ?? [],
             testLabel: null,
-            ctxt.TestCase.DisableParallelization);
+            uniqueId,
+            ctxt.Traits,
+            timeout: null,
+            rowArgs ?? []);
+
+    private static string ComputeStepUniqueID(ScenarioTestCase testCase, int displayIndex, object?[]? rowArgs)
+    {
+        using var g = new UniqueIDGenerator();
+        g.Add(testCase.UniqueID);
+        g.Add(displayIndex.ToString());
+        foreach (var arg in rowArgs ?? [])
+        {
+            g.Add(ScenarioTestCase.SerializeArgForId(arg));
+        }
+
+        return g.Compute();
+    }
 
     private static string FormatArg(object? arg) => arg switch
     {

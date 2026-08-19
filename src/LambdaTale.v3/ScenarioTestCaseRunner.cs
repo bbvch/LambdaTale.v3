@@ -17,6 +17,10 @@ internal sealed class ScenarioTestCaseRunnerContext(
 
     public object?[] ConstructorArguments => constructorArguments;
 
+    // Computed once per case run rather than per step: ITestCaseMetadata.Traits builds a fresh
+    // dictionary on every access.
+    public IReadOnlyDictionary<string, IReadOnlyCollection<string>> Traits { get; } = ((ITestCaseMetadata)testCase).Traits;
+
     // Every step of a case is reported as its own test, so each needs a distinct index. The index
     // in a step's display name restarts for each data row; this one must not, or the steps of two
     // rows of a delay-enumerated case would share unique IDs.

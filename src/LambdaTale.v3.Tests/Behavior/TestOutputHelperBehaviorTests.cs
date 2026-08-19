@@ -1,6 +1,5 @@
 using LambdaTale.v3.Tests.Harness;
 using Xunit;
-using Xunit.v3;
 
 namespace LambdaTale.v3.Tests.Behavior;
 
