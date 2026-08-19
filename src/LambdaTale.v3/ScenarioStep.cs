@@ -12,12 +12,24 @@ public sealed class ScenarioStep(
 {
     public ITestCase TestCase => parentTestCase;
 
+    // Failures outside any step (construction, disposal, timeout) and a skipped case are reported
+    // as pseudo-steps that carry a fixed name rather than a tale.
+    internal static ScenarioStep Synthetic(ScenarioTestCase parentTestCase, int stepIndex, string displayName) =>
+        new(parentTestCase, stepIndex, displayName, rowArgs: null) { DisplayNameOverride = displayName };
+
+    internal string? DisplayNameOverride { get; private init; }
+
     public string? TestLabel => null;
 
     public string TestDisplayName
     {
         get
         {
+            if (this.DisplayNameOverride is not null)
+            {
+                return this.DisplayNameOverride;
+            }
+
             if (rowArgs is null || rowArgs.Length == 0)
             {
                 return $"[{stepIndex}] {tale}";

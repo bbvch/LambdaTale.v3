@@ -166,6 +166,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
     bool IXunitDelayEnumeratedTestCase.SkipTestWithoutData => this.skipTestWithoutData;
 
+    internal bool IsDelayEnumerated => this.isDelayEnumerated;
+
     public void Serialize(IXunitSerializationInfo info)
     {
         info.AddValue("tm", this.TestMethod);
@@ -225,9 +227,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
     // A scenario's steps are an ordered narrative over shared state, so they always run
     // sequentially on this flow and parallelMode/scheduler are deliberately not consulted.
-    // Failures are reported per step through the message bus rather than via the aggregator,
-    // and method fixtures are not injected into steps.
-    public async ValueTask<RunSummary> Run(
+    // Method fixtures are not injected into steps.
+    public ValueTask<RunSummary> Run(
         ExplicitOption explicitOption,
         IMessageBus messageBus,
         object?[] constructorArguments,
@@ -237,108 +238,24 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         ExecutionScheduler scheduler,
         FixtureMappingManager methodFixtureMappings)
     {
-        var ids = new MsgIds(
-            this.TestCollection.TestAssembly.UniqueID,
-            this.TestCollection.UniqueID,
-            this.TestClass.UniqueID,
-            this.TestMethod.UniqueID,
-            this.UniqueID);
-        var emitter = new ScenarioMessageEmitter(
-            messageBus, cancellationTokenSource, ids, this.isExplicit, this.Timeout, this.Traits);
-        var startTime = DateTimeOffset.UtcNow;
-        RunSummary summary;
-
         var explicitSkipReason = (@explicit: this.isExplicit, explicitOption) switch
         {
             (true, ExplicitOption.Off) => "Test is marked Explicit and was not selected to run",
             (false, ExplicitOption.Only) => "Only explicit tests were selected to run",
             _ => null,
         };
-        var conditionalSkipReason = this.EvaluateConditionalSkip();
-        var effectiveSkipReason = this.SkipReason ?? conditionalSkipReason ?? explicitSkipReason;
 
-        await emitter.Queue(new TestCaseStarting
-        {
-            AssemblyUniqueID = ids.AssemblyId,
-            Explicit = this.isExplicit,
-            SkipReason = effectiveSkipReason,
-            SourceFilePath = this.SourceFilePath,
-            SourceLineNumber = this.SourceLineNumber,
-            StartTime = startTime,
-            TestCaseDisplayName = this.TestCaseDisplayName,
-            TestCaseUniqueID = ids.CaseId,
-            TestClassMetadataToken = this.TestClassMetadataToken,
-            TestClassName = this.TestClassName,
-            TestClassNamespace = this.TestMethod.TestClass.Class.Namespace,
-            TestClassSimpleName = this.TestClassSimpleName,
-            TestClassUniqueID = ids.ClassId,
-            TestCollectionUniqueID = ids.CollectionId,
-            TestMethodArity = this.MethodArityOrNull,
-            TestMethodMetadataToken = this.TestMethodMetadataToken,
-            TestMethodName = this.TestMethodName,
-            TestMethodParameterTypesVSTest = this.TestMethodParameterTypesVSTest,
-            TestMethodReturnTypeVSTest = this.TestMethodReturnTypeVSTest,
-            TestMethodUniqueID = ids.MethodId,
-            Traits = this.Traits,
-        });
-
-        if (effectiveSkipReason is not null)
-        {
-            summary = await this.SendSkippedTestCase(emitter, effectiveSkipReason);
-        }
-        else
-        {
-            var dispatch = this.isDelayEnumerated
-                ? ScenarioCaseRunner.RunDelayEnumerated(this, emitter, constructorArguments).AsTask()
-                : ScenarioCaseRunner.RunWithArguments(this, emitter, constructorArguments, this.TestMethodArguments).AsTask();
-
-            if (this.Timeout > 0)
-            {
-                var winner = await Task.WhenAny(dispatch, Task.Delay(this.Timeout));
-                if (winner != dispatch)
-                {
-                    var elapsed = this.Timeout / 1000m;
-                    var timeoutEx = new TimeoutException($"Test exceeded timeout of {this.Timeout}ms");
-                    await emitter.ReportSyntheticFailure("(Timeout)", stepIndex: 0, timeoutEx, elapsed);
-                    summary = new RunSummary { Total = 1, Failed = 1, Time = elapsed };
-                }
-                else
-                {
-                    summary = await dispatch;
-                }
-            }
-            else
-            {
-                summary = await dispatch;
-            }
-        }
-
-        await emitter.Queue(new TestCaseFinished
-        {
-            AssemblyUniqueID = ids.AssemblyId,
-            ExecutionTime = summary.Time,
-            FinishTime = DateTimeOffset.UtcNow,
-            TestCaseUniqueID = ids.CaseId,
-            TestClassUniqueID = ids.ClassId,
-            TestCollectionUniqueID = ids.CollectionId,
-            TestMethodUniqueID = ids.MethodId,
-            TestsFailed = summary.Failed,
-            TestsNotRun = 0,
-            TestsSkipped = summary.Skipped,
-            TestsTotal = summary.Total,
-        });
-
-        return summary;
+        return ScenarioTestCaseRunner.RunCase(
+            this,
+            explicitOption,
+            messageBus,
+            aggregator,
+            cancellationTokenSource,
+            constructorArguments,
+            this.SkipReason ?? this.EvaluateConditionalSkip() ?? explicitSkipReason);
     }
 
-    private async ValueTask<RunSummary> SendSkippedTestCase(ScenarioMessageEmitter emitter, string skipReason)
-    {
-        await emitter.EmitSynthetic(
-            emitter.TestUniqueId(0), this.TestCaseDisplayName, this.Traits, elapsed: 0m, new StepOutcome.Skipped(skipReason));
-        return new RunSummary { Total = 1, Skipped = 1 };
-    }
-
-    private string? EvaluateConditionalSkip()
+    internal string? EvaluateConditionalSkip()
     {
         if (this.SkipUnless is null && this.SkipWhen is null)
         {
