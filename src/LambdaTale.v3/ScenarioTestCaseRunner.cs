@@ -20,7 +20,9 @@ internal sealed class ScenarioTestCaseRunnerContext(
     // Every step of a case is reported as its own test, so each needs a distinct index. The index
     // in a step's display name restarts for each data row; this one must not, or the steps of two
     // rows of a delay-enumerated case would share unique IDs.
-    public int NextTestIndex() => this.nextTestIndex++;
+    // Interlocked because a timed-out case reports its (Timeout) step while the scenario it gave
+    // up on is still producing steps of its own.
+    public int NextTestIndex() => Interlocked.Increment(ref this.nextTestIndex) - 1;
 
     // The static reason merged with the conditional and explicit-option ones, resolved before the
     // run starts so a malformed [Scenario(SkipUnless = ...)] still surfaces to the caller.
@@ -64,7 +66,20 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
             : ScenarioCaseRunner.RunWithArguments(ctxt, testCase.TestMethodArguments).AsTask();
 
         var timeout = testCase.Timeout;
-        if (timeout <= 0 || await Task.WhenAny(dispatch, Task.Delay(timeout)) == dispatch)
+        if (timeout <= 0)
+        {
+            return await dispatch;
+        }
+
+        using var timer = new CancellationTokenSource();
+        var expired = Task.Delay(timeout, timer.Token);
+        var completed = await Task.WhenAny(dispatch, expired);
+
+        // Without this the timer outlives a scenario that finished quickly, keeping a pending
+        // callback alive for the rest of the timeout.
+        await timer.CancelAsync();
+
+        if (completed == dispatch)
         {
             return await dispatch;
         }
