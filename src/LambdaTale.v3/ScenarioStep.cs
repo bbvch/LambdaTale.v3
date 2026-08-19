@@ -12,6 +12,8 @@ public sealed class ScenarioStep(
 {
     public ITestCase TestCase => parentTestCase;
 
+    public string? TestLabel => null;
+
     public string TestDisplayName
     {
         get
@@ -67,12 +69,17 @@ public sealed class ScenarioStep(
     }
 
     IXunitTestCase IXunitTest.TestCase => parentTestCase;
-    bool IXunitTest.Explicit => false;
+    ICoreTestCase ICoreTest.TestCase => parentTestCase;
     string? IXunitTest.SkipReason => null;
     Type? IXunitTest.SkipType => null;
     string? IXunitTest.SkipUnless => null;
     string? IXunitTest.SkipWhen => null;
     IXunitTestMethod IXunitTest.TestMethod => parentTestCase.TestMethod;
     object?[] IXunitTest.TestMethodArguments => rowArgs ?? [];
-    int IXunitTest.Timeout => 0;
+    bool ICoreTest.Explicit => false;
+    int ICoreTest.Timeout => 0;
+
+    // Steps of a scenario are always run in order on a single flow; their parallelization
+    // constraint is the one the containing test case carries.
+    bool ICoreTest.DisableParallelization => parentTestCase.DisableParallelization;
 }

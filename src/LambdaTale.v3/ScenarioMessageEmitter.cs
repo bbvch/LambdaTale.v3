@@ -49,6 +49,7 @@ internal sealed class ScenarioMessageEmitter(
             TestClassUniqueID = ids.ClassId,
             TestCollectionUniqueID = ids.CollectionId,
             TestDisplayName = displayName,
+            TestLabel = null,
             TestMethodUniqueID = ids.MethodId,
             TestUniqueID = testUniqueId,
             Timeout = timeout,

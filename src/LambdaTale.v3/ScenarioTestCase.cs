@@ -31,7 +31,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         Type? skipType = null,
         string? skipUnless = null,
         string? skipWhen = null,
-        int timeout = 0)
+        int timeout = 0,
+        bool disableParallelization = false)
     {
         this.TestMethod = Guard.ArgumentNotNull(testMethod);
         this.TestMethodArguments = testMethodArguments;
@@ -47,6 +48,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         this.SkipUnless = skipUnless;
         this.SkipWhen = skipWhen;
         this.Timeout = timeout;
+        this.DisableParallelization = disableParallelization;
     }
 
     public IXunitTestMethod TestMethod
@@ -120,10 +122,10 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
     public string TestMethodReturnTypeVSTest => this.TestMethod.ReturnType.FullName ?? this.TestMethod.ReturnType.Name;
 
-    public int? TestMethodArity =>
+    public int TestMethodArity =>
         this.TestMethod.Method.IsGenericMethodDefinition
             ? this.TestMethod.Method.GetGenericArguments().Length
-            : null;
+            : 0;
 
     public string? SkipReason { get; private set; }
     public Type? SkipType { get; private set; }
@@ -135,6 +137,8 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     public Type[]? SkipExceptions { get; private set; }
 
     public int Timeout { get; private set; }
+
+    public bool DisableParallelization { get; private set; }
 
     public string? SourceFilePath { get; private set; }
     public int? SourceLineNumber { get; private set; }
@@ -148,10 +152,14 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
     ITestClass ITestCase.TestClass => this.TestClass;
     ITestCollection ITestCase.TestCollection => this.TestCollection;
     ITestMethod ITestCase.TestMethod => this.TestMethod;
+    ICoreTestClass ICoreTestCase.TestClass => this.TestClass;
+    ICoreTestCollection ICoreTestCase.TestCollection => this.TestCollection;
+    ICoreTestMethod ICoreTestCase.TestMethod => this.TestMethod;
     bool ITestCaseMetadata.Explicit => this.isExplicit;
     string? ITestCaseMetadata.SkipReason => this.SkipReason;
     int? ITestCaseMetadata.TestClassMetadataToken => this.TestClassMetadataToken;
     string? ITestCaseMetadata.TestClassNamespace => this.TestMethod.TestClass.Class.Namespace;
+    int? ITestCaseMetadata.TestMethodArity => this.MethodArityOrNull;
     int? ITestCaseMetadata.TestMethodMetadataToken => this.TestMethodMetadataToken;
     string[] ITestCaseMetadata.TestMethodParameterTypesVSTest => this.TestMethodParameterTypesVSTest;
     string ITestCaseMetadata.TestMethodReturnTypeVSTest => this.TestMethodReturnTypeVSTest;
@@ -174,6 +182,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         info.AddValue("su", this.SkipUnless);
         info.AddValue("sw", this.SkipWhen);
         info.AddValue("to", this.Timeout);
+        info.AddValue("dp", this.DisableParallelization);
         var argc = this.TestMethodArguments?.Length ?? -1;
         info.AddValue("argc", argc);
         if (this.TestMethodArguments is not null)
@@ -202,6 +211,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         this.SkipUnless = info.GetValue<string?>("su");
         this.SkipWhen = info.GetValue<string?>("sw");
         this.Timeout = info.GetValue<int>("to");
+        this.DisableParallelization = info.GetValue<bool>("dp");
         var argc = info.GetValue<int>("argc");
         if (argc >= 0)
         {
@@ -213,12 +223,19 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         }
     }
 
+    // A scenario's steps are an ordered narrative over shared state, so they always run
+    // sequentially on this flow and parallelMode/scheduler are deliberately not consulted.
+    // Failures are reported per step through the message bus rather than via the aggregator,
+    // and method fixtures are not injected into steps.
     public async ValueTask<RunSummary> Run(
         ExplicitOption explicitOption,
         IMessageBus messageBus,
         object?[] constructorArguments,
-        ExceptionAggregator __,
-        CancellationTokenSource cancellationTokenSource)
+        ExceptionAggregator aggregator,
+        CancellationTokenSource cancellationTokenSource,
+        ParallelMode parallelMode,
+        ExecutionScheduler scheduler,
+        FixtureMappingManager methodFixtureMappings)
     {
         var ids = new MsgIds(
             this.TestCollection.TestAssembly.UniqueID,
@@ -228,6 +245,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             this.UniqueID);
         var emitter = new ScenarioMessageEmitter(
             messageBus, cancellationTokenSource, ids, this.isExplicit, this.Timeout, this.Traits);
+        var startTime = DateTimeOffset.UtcNow;
         RunSummary summary;
 
         var explicitSkipReason = (@explicit: this.isExplicit, explicitOption) switch
@@ -246,6 +264,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             SkipReason = effectiveSkipReason,
             SourceFilePath = this.SourceFilePath,
             SourceLineNumber = this.SourceLineNumber,
+            StartTime = startTime,
             TestCaseDisplayName = this.TestCaseDisplayName,
             TestCaseUniqueID = ids.CaseId,
             TestClassMetadataToken = this.TestClassMetadataToken,
@@ -254,7 +273,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
             TestClassSimpleName = this.TestClassSimpleName,
             TestClassUniqueID = ids.ClassId,
             TestCollectionUniqueID = ids.CollectionId,
-            TestMethodArity = this.TestMethodArity,
+            TestMethodArity = this.MethodArityOrNull,
             TestMethodMetadataToken = this.TestMethodMetadataToken,
             TestMethodName = this.TestMethodName,
             TestMethodParameterTypesVSTest = this.TestMethodParameterTypesVSTest,
@@ -298,6 +317,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         {
             AssemblyUniqueID = ids.AssemblyId,
             ExecutionTime = summary.Time,
+            FinishTime = DateTimeOffset.UtcNow,
             TestCaseUniqueID = ids.CaseId,
             TestClassUniqueID = ids.ClassId,
             TestCollectionUniqueID = ids.CollectionId,
@@ -349,4 +369,7 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
 
     // GetParameters() clones an array on each call; the parameters are constant per test method.
     internal ParameterInfo[] MethodParameters => field ??= this.TestMethod.Method.GetParameters();
+
+    // ITestCaseMetadata reports arity as absent (rather than zero) for non-generic methods.
+    private int? MethodArityOrNull => this.TestMethod.Method.IsGenericMethodDefinition ? this.TestMethodArity : null;
 }

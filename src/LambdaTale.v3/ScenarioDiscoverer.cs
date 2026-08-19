@@ -59,7 +59,8 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
                     skipType: attr.SkipType,
                     skipUnless: attr.SkipUnless,
                     skipWhen: attr.SkipWhen,
-                    timeout: attr.Timeout));
+                    timeout: attr.Timeout,
+                    disableParallelization: attr.DisableParallelization));
                 return result;
             }
 
@@ -119,5 +120,6 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
             skipType: attr.SkipType,
             skipUnless: attr.SkipUnless,
             skipWhen: attr.SkipWhen,
-            timeout: attr.Timeout);
+            timeout: attr.Timeout,
+            disableParallelization: attr.DisableParallelization);
 }
