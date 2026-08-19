@@ -86,15 +86,16 @@ public sealed class ScenarioDiscoverer : IXunitTestCaseDiscoverer
         bool isDelayEnumerated = false,
         bool disableParallelization = false)
     {
-        // The details' UniqueID and ResolvedTestMethod are deliberately unused: ScenarioTestCase
-        // derives its own ID, and adopting xunit's would orphan the run history of existing tests.
-        var details = TestIntrospectionHelper.GetTestCaseDetails(
-            discoveryOptions, testMethod, attr, args, timeout: null, baseDisplayName: null, label);
+        // Asking for the details without the arguments yields the base display name and skips the
+        // unique ID GetTestCaseDetails would derive from them — it serializes them with xunit's
+        // serializer, which rejects the ordinary domain objects a scenario takes. ScenarioTestCase
+        // derives its own ID, and the arguments only otherwise affect the display name.
+        var details = TestIntrospectionHelper.GetTestCaseDetails(discoveryOptions, testMethod, attr);
 
         return new ScenarioTestCase(
             testMethod,
             testMethodArguments: args,
-            testCaseDisplayName: displayNameOverride ?? details.TestCaseDisplayName,
+            testCaseDisplayName: displayNameOverride ?? testMethod.GetDisplayName(details.TestCaseDisplayName, label, args, null),
             skipReason: skipReasonOverride ?? details.SkipReason,
             sourceFilePath: details.SourceFilePath,
             sourceLineNumber: details.SourceLineNumber,

@@ -63,6 +63,17 @@ public class SerializationBehaviorTests
     }
 
     [Fact]
+    public void UniqueIDMatchesXunitsSchemeForSerializableArguments()
+    {
+        var testMethod = FixtureMethod.For<Fixture>(nameof(Fixture.MethodWithInt));
+        var testCase = new ScenarioTestCase(testMethod, testMethodArguments: [42]);
+
+        Assert.Equal(
+            UniqueIDGenerator.ForTestCase(testMethod.UniqueID, testMethodGenericTypes: null, [42]),
+            testCase.UniqueID);
+    }
+
+    [Fact]
     public void UniqueIDDoesNotThrowForNonXunitSerializableArguments()
     {
         var testMethod = FixtureMethod.For<Fixture>(nameof(Fixture.MethodWithSumType));
@@ -91,6 +102,7 @@ public class SerializationBehaviorTests
     private sealed class Fixture
     {
         public void Method() { }
+        public void MethodWithInt(int value) { }
         public void MethodWithSumType(SumType t) { }
     }
 

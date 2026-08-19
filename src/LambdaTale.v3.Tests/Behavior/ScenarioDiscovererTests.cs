@@ -32,6 +32,21 @@ public class ScenarioDiscovererTests
             new([]);
     }
 
+    public sealed class Unserializable(string name)
+    {
+        public override string ToString() => name;
+    }
+
+    [AttributeUsage(AttributeTargets.Method)]
+    private sealed class NonSerializableDataAttribute : DataAttribute
+    {
+        public override bool SupportsDiscoveryEnumeration() => true;
+
+        public override ValueTask<IReadOnlyCollection<ITheoryDataRow>> GetData(
+            MethodInfo testMethod, DisposalTracker disposalTracker) =>
+            new([new TheoryDataRow<Unserializable>(new Unserializable("nope"))]);
+    }
+
     [AttributeUsage(AttributeTargets.Method)]
     private sealed class DelayEnumeratedDataAttribute : DataAttribute
     {
@@ -123,6 +138,18 @@ public class ScenarioDiscovererTests
     }
 
     [Fact]
+    public async Task DiscoverReturnsTestCaseWhenRowArgumentIsNotXunitSerializable()
+    {
+        var testMethod = FixtureMethod.For<NonSerializableDataFixture>(nameof(NonSerializableDataFixture.Method));
+        var result = await new ScenarioDiscoverer().Discover(
+            new SimpleDiscoveryOptions(), testMethod, new ScenarioAttribute());
+
+        var single = Assert.Single(result);
+        var testCase = Assert.IsType<ScenarioTestCase>(single);
+        Assert.NotEmpty(testCase.UniqueID);
+    }
+
+    [Fact]
     public async Task DiscoverReturnsDelayEnumeratedCaseWhenDataDoesNotSupportEnumeration()
     {
         var testMethod = FixtureMethod.For<DelayEnumeratedFixture>(nameof(DelayEnumeratedFixture.Method));
@@ -150,6 +177,12 @@ public class ScenarioDiscovererTests
     {
         [EmptyData]
         public void Method() { }
+    }
+
+    private sealed class NonSerializableDataFixture
+    {
+        [NonSerializableData]
+        public void Method(Unserializable value) { }
     }
 
     private sealed class DelayEnumeratedFixture

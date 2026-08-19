@@ -75,31 +75,27 @@ public sealed class ScenarioTestCase : ISelfExecutingXunitTestCase, IXunitDelayE
         }
     }
 
-    public string UniqueID
-    {
-        get
-        {
-            if (field is not null)
-            {
-                return field;
-            }
+    public string UniqueID => field ??= this.ComputeUniqueID();
 
+    private string ComputeUniqueID()
+    {
+        try
+        {
+            return UniqueIDGenerator.ForTestCase(this.TestMethod.UniqueID, testMethodGenericTypes: null, this.TestMethodArguments);
+        }
+        catch (ArgumentException)
+        {
+            // ForTestCase serializes the arguments with xunit's serializer, which rejects types it
+            // doesn't understand. A scenario's arguments are ordinary domain objects, so fall back
+            // to hashing each one on its own terms rather than failing discovery.
             using var g = new UniqueIDGenerator();
             g.Add(this.TestMethod.UniqueID);
-            if (this.TestMethodArguments is not null)
+            foreach (var arg in this.TestMethodArguments!)
             {
-                foreach (var arg in this.TestMethodArguments)
-                {
-                    g.Add(SerializeArgForId(arg));
-                }
+                g.Add(SerializeArgForId(arg));
             }
 
-            if (this.isDelayEnumerated)
-            {
-                g.Add("delayed");
-            }
-
-            return field = g.Compute();
+            return g.Compute();
         }
     }
 
