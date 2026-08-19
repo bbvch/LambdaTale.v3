@@ -147,7 +147,7 @@ internal static class ScenarioCaseRunner
         Exception failure,
         TimeSpan elapsed) =>
         ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(
-            SyntheticStep(ctxt, displayName),
+            SyntheticStep(ctxt, QualifiedStepName(ctxt, displayName)),
             ctxt,
             new TestOutputHelper(),
             () => ValueTask.FromException(failure),
@@ -191,15 +191,19 @@ internal static class ScenarioCaseRunner
         string tale,
         object?[]? rowArgs)
     {
-        var displayName = rowArgs is { Length: > 0 }
+        var stepName = rowArgs is { Length: > 0 }
             ? $"({string.Join(", ", rowArgs.Select(FormatArg))}) [{displayIndex}] {tale}"
             : $"[{displayIndex}] {tale}";
+        var displayName = QualifiedStepName(ctxt, stepName);
 
         // Folds the row's own arguments into the ID (not just its position) so a delay-enumerated
         // scenario's step IDs stay stable across runs even if the data source reorders or resizes.
         var uniqueId = ComputeStepUniqueID(ctxt.TestCase, displayIndex, rowArgs);
         return NewStep(ctxt, displayName, uniqueId, rowArgs);
     }
+
+    private static string QualifiedStepName(ScenarioTestCaseRunnerContext ctxt, string stepName) =>
+        $"{ctxt.TestCase.TestCaseDisplayName}: {stepName}";
 
     private static XunitTest SyntheticStep(ScenarioTestCaseRunnerContext ctxt, string displayName) =>
         NewStep(ctxt, displayName, UniqueIDGenerator.ForTest(ctxt.TestCase.UniqueID, ctxt.NextTestIndex()), rowArgs: null);
