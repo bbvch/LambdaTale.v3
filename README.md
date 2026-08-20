@@ -9,10 +9,8 @@ result in the test runner.
 
 ```csharp
 [Scenario]
-public void Adding_an_item_to_the_cart()
+public void AddingAnItemToTheCart(Cart cart)
 {
-    var cart = default(Cart);
-
     "Given an empty cart".x(() => cart = new Cart());
     "When I add a book".x(() => cart.Add(new Book("xUnit in Action")));
     "Then the cart has one item".x(() => Assert.Single(cart.Items));
@@ -31,7 +29,7 @@ public void Adding_an_item_to_the_cart()
 Requires **.NET 10** and **xUnit.net v3** on the Microsoft.Testing.Platform runner.
 
 ```xml
-<PackageReference Include="bbv.LambdaTale.v3" Version="0.0.1-beta.2" />
+<PackageReference Include="bbv.LambdaTale.v3" Version="0.0.1" />
 ```
 
 Then write a scenario.
@@ -43,9 +41,8 @@ using Xunit;
 public class CalculatorTests
 {
     [Scenario]
-    public void Adding_two_numbers()
+    public void AddingTwoNumbers(Calculator calculator)
     {
-        var calculator = default(Calculator);
         var result = 0;
 
         "Given a calculator".x(() => calculator = new Calculator());
@@ -54,7 +51,7 @@ public class CalculatorTests
     }
 
     [Fact] // ordinary xUnit tests work side by side
-    public void Subtraction_works() => Assert.Equal(1, new Calculator().Subtract(3, 2));
+    public void SubtractionWorks() => Assert.Equal(1, new Calculator().Subtract(3, 2));
 }
 ```
 
@@ -79,10 +76,10 @@ scenario:
 [Scenario]
 [InlineData(2, "two")]
 [InlineData(3, "three")]
-public void With_inline_data(int value, string name)
+public void WithInlineData(int value, string name)
 {
-    $"Given value is {value}".x(() => { });
-    "Then value is positive".x(() => Assert.True(value > 0));
+    $"Given {name} is {value}".x(() => { });
+    $"Then {name} is positive".x(() => Assert.True(value > 0));
 }
 ```
 
