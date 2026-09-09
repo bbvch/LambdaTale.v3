@@ -201,6 +201,11 @@ internal static class ScenarioCaseRunner
 
         for (var i = 0; i < steps.Count; i++)
         {
+            if (ctxt.HasTimedOut)
+            {
+                break;
+            }
+
             var td = steps[i];
             var step = Step(ctxt, stepIndexOffset + i, td.Tale, rowArgs);
             var stepSummary = await ScenarioStepRunner.Instance.RunStep(new ScenarioStepRunnerContext(

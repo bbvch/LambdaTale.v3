@@ -5,15 +5,29 @@ namespace LambdaTale.v3.Tests.Harness;
 
 internal sealed class CapturingMessageBus : IMessageBus
 {
+    private readonly Lock gate = new();
     private readonly List<IMessageSinkMessage> messages = [];
 
-    public IReadOnlyList<IMessageSinkMessage> Messages => this.messages;
+    public IReadOnlyList<IMessageSinkMessage> Messages
+    {
+        get
+        {
+            lock (this.gate)
+            {
+                return [.. this.messages];
+            }
+        }
+    }
 
-    public IEnumerable<T> OfType<T>() => this.messages.OfType<T>();
+    public IEnumerable<T> OfType<T>() => this.Messages.OfType<T>();
 
     public bool QueueMessage(IMessageSinkMessage message)
     {
-        this.messages.Add(message);
+        lock (this.gate)
+        {
+            this.messages.Add(message);
+        }
+
         return true;
     }
 

@@ -6,7 +6,7 @@ namespace LambdaTale.v3;
 internal sealed class ScenarioTestCaseRunnerContext(
     ScenarioTestCase testCase,
     ExplicitOption explicitOption,
-    IMessageBus messageBus,
+    StoppableMessageBus messageBus,
     ExceptionAggregator aggregator,
     CancellationTokenSource cancellationTokenSource,
     object?[] constructorArguments,
@@ -14,6 +14,7 @@ internal sealed class ScenarioTestCaseRunnerContext(
     : TestCaseRunnerBaseContext<ScenarioTestCase>(testCase, explicitOption, messageBus, aggregator, cancellationTokenSource)
 {
     private int nextSyntheticTestIndex;
+    private volatile bool timedOut;
 
     public object?[] ConstructorArguments => constructorArguments;
 
@@ -32,6 +33,12 @@ internal sealed class ScenarioTestCaseRunnerContext(
     // The static reason merged with the conditional and explicit-option ones, resolved before the
     // run starts so a malformed [Scenario(SkipUnless = ...)] still surfaces to the caller.
     public string? SkipReason => skipReason;
+
+    public bool HasTimedOut => this.timedOut;
+
+    public void SignalTimeout() => this.timedOut = true;
+
+    public void StopReporting() => messageBus.Stop();
 }
 
 internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCaseRunnerContext, ScenarioTestCase>
@@ -48,7 +55,13 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
         string? skipReason)
     {
         await using var ctxt = new ScenarioTestCaseRunnerContext(
-            testCase, explicitOption, messageBus, aggregator, cancellationTokenSource, constructorArguments, skipReason);
+            testCase,
+            explicitOption,
+            new StoppableMessageBus(messageBus),
+            aggregator,
+            cancellationTokenSource,
+            constructorArguments,
+            skipReason);
         await ctxt.InitializeAsync();
         return await Instance.Run(ctxt);
     }
@@ -89,10 +102,18 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
             return await dispatch;
         }
 
-        return await ScenarioCaseRunner.RunSyntheticStep(
+        // Order matters: signal first so no further step starts, report while the bus is still
+        // live, then close it so the in-flight step's unwinding goes unreported.
+        ctxt.SignalTimeout();
+
+        var timedOutSummary = await ScenarioCaseRunner.RunSyntheticStep(
             ctxt,
             "(Timeout)",
             new TimeoutException($"Test exceeded timeout of {timeout}ms"),
             TimeSpan.FromMilliseconds(timeout));
+
+        ctxt.StopReporting();
+
+        return timedOutSummary;
     }
 }
