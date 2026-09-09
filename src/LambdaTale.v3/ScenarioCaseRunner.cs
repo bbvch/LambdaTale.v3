@@ -93,7 +93,16 @@ internal static class ScenarioCaseRunner
 
                 var mainSteps = Scenario.TestDefinitions.ToList();
                 mainStepCount = mainSteps.Count;
-                summary.Aggregate(await RunStepLoop(ctxt, mainSteps, stepIndexOffset: 0, methodArguments, outputHelper));
+                // Without a result of its own a stepless scenario is reported as green.
+                summary.Aggregate(mainSteps.Count == 0
+                    ? await RunSyntheticStep(
+                        ctxt,
+                        "(No Steps)",
+                        new InvalidOperationException(
+                            $"Scenario '{testCase.TestCaseDisplayName}' registered no steps. A scenario "
+                            + "must register at least one step for its result to mean anything."),
+                        TimeSpan.Zero)
+                    : await RunStepLoop(ctxt, mainSteps, stepIndexOffset: 0, methodArguments, outputHelper));
             }
         }
         finally
