@@ -85,24 +85,49 @@ internal static class ScenarioCaseRunner
                     ];
                 }
 
-                var scenarioResult = testCase.TestMethod.Method.Invoke(testClassInstance, invocationArguments);
-                if (scenarioResult is Task scenarioTask)
+                // Escaping here would leave xunit's aggregator to blame cleanup and drop the
+                // steps the body had already registered.
+                Exception? bodyFailure = null;
+                try
                 {
-                    await scenarioTask;
+                    var scenarioResult = testCase.TestMethod.Method.Invoke(testClassInstance, invocationArguments);
+                    if (scenarioResult is Task scenarioTask)
+                    {
+                        await scenarioTask;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    bodyFailure = ex is TargetInvocationException tie ? tie.InnerException ?? tie : ex;
                 }
 
                 var mainSteps = Scenario.TestDefinitions.ToList();
                 mainStepCount = mainSteps.Count;
-                // Without a result of its own a stepless scenario is reported as green.
-                summary.Aggregate(mainSteps.Count == 0
-                    ? await RunSyntheticStep(
+
+                if (bodyFailure is not null)
+                {
+                    summary.Aggregate(await RunSyntheticStep(ctxt, "(Scenario)", bodyFailure, TimeSpan.Zero));
+                    summary.Aggregate(await RunStepLoop(
                         ctxt,
-                        "(No Steps)",
-                        new InvalidOperationException(
-                            $"Scenario '{testCase.TestCaseDisplayName}' registered no steps. A scenario "
-                            + "must register at least one step for its result to mean anything."),
-                        TimeSpan.Zero)
-                    : await RunStepLoop(ctxt, mainSteps, stepIndexOffset: 0, methodArguments, outputHelper));
+                        mainSteps,
+                        stepIndexOffset: 0,
+                        methodArguments,
+                        outputHelper,
+                        skipAllReason: "Scenario body failed before its steps could run"));
+                }
+                else
+                {
+                    // Without a result of its own a stepless scenario is reported as green.
+                    summary.Aggregate(mainSteps.Count == 0
+                        ? await RunSyntheticStep(
+                            ctxt,
+                            "(No Steps)",
+                            new InvalidOperationException(
+                                $"Scenario '{testCase.TestCaseDisplayName}' registered no steps. A scenario "
+                                + "must register at least one step for its result to mean anything."),
+                            TimeSpan.Zero)
+                        : await RunStepLoop(ctxt, mainSteps, stepIndexOffset: 0, methodArguments, outputHelper));
+                }
             }
         }
         finally
@@ -167,10 +192,12 @@ internal static class ScenarioCaseRunner
         List<ScenarioTestDefinition> steps,
         int stepIndexOffset,
         object?[]? rowArgs,
-        TestOutputHelper outputHelper)
+        TestOutputHelper outputHelper,
+        string? skipAllReason = null)
     {
         var summary = new RunSummary();
-        var stopped = false;
+        var stopped = skipAllReason is not null;
+        var stopReason = skipAllReason ?? "Previous step failed";
 
         for (var i = 0; i < steps.Count; i++)
         {
@@ -181,7 +208,7 @@ internal static class ScenarioCaseRunner
                 ctxt,
                 outputHelper,
                 () => InvokeTale(td.Lambda),
-                skipReason: stopped ? "Previous step failed" : null));
+                skipReason: stopped ? stopReason : null));
 
             summary.Aggregate(stepSummary);
 
