@@ -48,6 +48,25 @@ public class TimeoutBehaviorTests
             m => m.TestDisplayName.Contains("after the timeout"));
     }
 
+    [Fact]
+    public async Task TimedOutScenarioCancelsAStepThatHonoursTheToken()
+    {
+        CooperativeFixture.Reset();
+
+        var bus = await ScenarioTestRunner.RunFixture<CooperativeFixture>(
+            nameof(CooperativeFixture.ScenarioWithCooperativeStep), timeout: TimeoutMilliseconds);
+
+        bus.AssertStepFailed("(Timeout)");
+
+        var finished = await Task.WhenAny(
+            CooperativeFixture.Cancelled.Task,
+            Task.Delay(3000, TestContext.Current.CancellationToken));
+
+        Assert.True(
+            ReferenceEquals(finished, CooperativeFixture.Cancelled.Task),
+            "step awaited TestContext.Current.CancellationToken but was never cancelled");
+    }
+
     private sealed class SlowScenarioFixture
     {
         public void ScenarioWithSlowFirstStep()
@@ -57,5 +76,26 @@ public class TimeoutBehaviorTests
             "Then a step that runs after the timeout".x(() => { });
             "And another step that runs after the timeout".x(() => { });
         }
+    }
+
+    private sealed class CooperativeFixture
+    {
+        public static TaskCompletionSource Cancelled = new();
+
+        public static void Reset() => Cancelled = new TaskCompletionSource();
+
+        public void ScenarioWithCooperativeStep() =>
+            "Given a step that honours the cancellation token".x(async () =>
+            {
+                try
+                {
+                    await Task.Delay(10_000, TestContext.Current.CancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    Cancelled.TrySetResult();
+                    throw;
+                }
+            });
     }
 }

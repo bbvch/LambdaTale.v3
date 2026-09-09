@@ -8,10 +8,11 @@ internal sealed class ScenarioTestCaseRunnerContext(
     ExplicitOption explicitOption,
     StoppableMessageBus messageBus,
     ExceptionAggregator aggregator,
-    CancellationTokenSource cancellationTokenSource,
+    CancellationTokenSource caseCancellation,
+    CancellationTokenSource timeoutCancellation,
     object?[] constructorArguments,
     string? skipReason)
-    : TestCaseRunnerBaseContext<ScenarioTestCase>(testCase, explicitOption, messageBus, aggregator, cancellationTokenSource)
+    : TestCaseRunnerBaseContext<ScenarioTestCase>(testCase, explicitOption, messageBus, aggregator, caseCancellation)
 {
     private int nextSyntheticTestIndex;
     private volatile bool timedOut;
@@ -38,6 +39,9 @@ internal sealed class ScenarioTestCaseRunnerContext(
 
     public void SignalTimeout() => this.timedOut = true;
 
+    // Only reclaims a step that awaits the token it was handed; one that ignores it runs to the end.
+    public void CancelRunawayWork() => timeoutCancellation.Cancel();
+
     public void StopReporting() => messageBus.Stop();
 }
 
@@ -54,16 +58,46 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
         object?[] constructorArguments,
         string? skipReason)
     {
-        await using var ctxt = new ScenarioTestCaseRunnerContext(
-            testCase,
-            explicitOption,
-            new StoppableMessageBus(messageBus),
-            aggregator,
-            cancellationTokenSource,
-            constructorArguments,
-            skipReason);
-        await ctxt.InitializeAsync();
-        return await Instance.Run(ctxt);
+        // Linked so a timeout cancels only this case rather than the whole run.
+        var timeoutCancellation = new CancellationTokenSource();
+        var caseCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationTokenSource.Token, timeoutCancellation.Token);
+        var disposeCaseCancellation = true;
+
+        try
+        {
+            await using var ctxt = new ScenarioTestCaseRunnerContext(
+                testCase,
+                explicitOption,
+                new StoppableMessageBus(messageBus),
+                aggregator,
+                caseCancellation,
+                timeoutCancellation,
+                constructorArguments,
+                skipReason);
+            await ctxt.InitializeAsync();
+            var summary = await Instance.Run(ctxt);
+
+            if (caseCancellation.IsCancellationRequested
+                && !timeoutCancellation.IsCancellationRequested
+                && !cancellationTokenSource.IsCancellationRequested)
+            {
+                await cancellationTokenSource.CancelAsync();
+            }
+
+            // The abandoned step still holds these tokens; disposing them would turn a clean
+            // cancellation into an ObjectDisposedException.
+            disposeCaseCancellation = !ctxt.HasTimedOut;
+            return summary;
+        }
+        finally
+        {
+            if (disposeCaseCancellation)
+            {
+                caseCancellation.Dispose();
+                timeoutCancellation.Dispose();
+            }
+        }
     }
 
     protected override async ValueTask<RunSummary> RunTestCase(ScenarioTestCaseRunnerContext ctxt, Exception? exception)
@@ -112,6 +146,7 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
             new TimeoutException($"Test exceeded timeout of {timeout}ms"),
             TimeSpan.FromMilliseconds(timeout));
 
+        ctxt.CancelRunawayWork();
         ctxt.StopReporting();
 
         return timedOutSummary;
