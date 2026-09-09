@@ -13,7 +13,7 @@ internal sealed class ScenarioTestCaseRunnerContext(
     string? skipReason)
     : TestCaseRunnerBaseContext<ScenarioTestCase>(testCase, explicitOption, messageBus, aggregator, cancellationTokenSource)
 {
-    private int nextTestIndex;
+    private int nextSyntheticTestIndex;
 
     public object?[] ConstructorArguments => constructorArguments;
 
@@ -24,9 +24,10 @@ internal sealed class ScenarioTestCaseRunnerContext(
     // Every step of a case is reported as its own test, so each needs a distinct index. The index
     // in a step's display name restarts for each data row; this one must not, or the steps of two
     // rows of a delay-enumerated case would share unique IDs.
+    // Negative so it cannot collide with the zero-based display index real steps derive theirs from.
     // Interlocked because a timed-out case reports its (Timeout) step while the scenario it gave
     // up on is still producing steps of its own.
-    public int NextTestIndex() => Interlocked.Increment(ref this.nextTestIndex) - 1;
+    public int NextSyntheticTestIndex() => -Interlocked.Increment(ref this.nextSyntheticTestIndex);
 
     // The static reason merged with the conditional and explicit-option ones, resolved before the
     // run starts so a malformed [Scenario(SkipUnless = ...)] still surfaces to the caller.
