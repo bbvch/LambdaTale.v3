@@ -206,7 +206,7 @@ internal static class ScenarioCaseRunner
         $"{ctxt.TestCase.TestCaseDisplayName}: {stepName}";
 
     private static XunitTest SyntheticStep(ScenarioTestCaseRunnerContext ctxt, string displayName) =>
-        NewStep(ctxt, displayName, UniqueIDGenerator.ForTest(ctxt.TestCase.UniqueID, ctxt.NextTestIndex()), rowArgs: null);
+        NewStep(ctxt, displayName, UniqueIDGenerator.ForTest(ctxt.TestCase.UniqueID, ctxt.NextSyntheticTestIndex()), rowArgs: null);
 
     private static XunitTest NewStep(
         ScenarioTestCaseRunnerContext ctxt,
