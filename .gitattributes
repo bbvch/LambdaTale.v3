@@ -1,1 +1,5 @@
-* -text
+* text=auto eol=crlf
+
+# Kept at LF to match .editorconfig
+packages.lock.json text eol=lf
+*.sh text eol=lf
