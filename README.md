@@ -29,7 +29,7 @@ public void AddingAnItemToTheCart(Cart cart)
 Requires **.NET 10** and **xUnit.net v3** on the Microsoft.Testing.Platform runner.
 
 ```xml
-<PackageReference Include="bbv.LambdaTale.v3" Version="0.0.1" />
+<PackageReference Include="bbv.LambdaTale.v3" Version="0.0.3" />
 ```
 
 Then write a scenario.
