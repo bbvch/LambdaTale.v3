@@ -39,10 +39,13 @@ internal sealed class ScenarioTestCaseRunnerContext(
 
     public void SignalTimeout() => this.timedOut = true;
 
-    // Only reclaims a step that awaits the token it was handed; one that ignores it runs to the end.
-    public void CancelRunawayWork() => timeoutCancellation.Cancel();
-
-    public void StopReporting() => messageBus.Stop();
+    public void CancelRunawayWork()
+    {
+        // Only reclaims a step that awaits the token it was handed; one that ignores it runs to the end...
+        timeoutCancellation.Cancel();
+        // ... so prevent messages on the to be disposed bus.
+        messageBus.Stop();
+    }
 }
 
 internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCaseRunnerContext, ScenarioTestCase>
@@ -147,7 +150,6 @@ internal sealed class ScenarioTestCaseRunner : TestCaseRunnerBase<ScenarioTestCa
             TimeSpan.FromMilliseconds(timeout));
 
         ctxt.CancelRunawayWork();
-        ctxt.StopReporting();
 
         return timedOutSummary;
     }
