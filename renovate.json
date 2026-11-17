@@ -4,6 +4,5 @@
   "dependencyDashboard": {
     "enabled": false
   },
-  "ignorePaths": [],
-  "updatePinnedDependencies": false
+  "ignorePaths": []
 }
