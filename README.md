@@ -57,14 +57,14 @@ public class CalculatorTests
 
 ## Writing scenarios
 
-**Steps** run in declaration order; each is a description plus an `Action` or
-`Func<Task>` body. **Shared state** is just closures over the method's locals:
+**Steps** run in declaration order; each is a description plus an `Action`,
+`Func<Task>`, or `Func<CancellationToken, Task>` body. **Shared state** is just closures over the method's locals:
 
 ```csharp
 // set up before the first step
 var x = 8;
 "When it is incremented".x(() => x += 1);
-"And awaited work runs".x(async () => await Task.Delay(10));
+"And awaited work runs".x(() => Task.Delay(10));
 "Then it is 9".x(() => Assert.Equal(9, x));
 ```
 
@@ -106,6 +106,18 @@ skipped (`OnError.Stop`, the default). Use `OnError.Continue` — or `.ContinueO
 ```
 
 Throwing a skip exception from inside a step marks that step skipped rather than failed.
+
+A step only stops early on a timeout if it observes cancellation. Take the token as the
+body's parameter, and the step is cancelled when the scenario times out or the run is
+cancelled:
+
+```csharp
+"When the order is submitted".x(ct => client.Submit(order, ct));
+"Then it is confirmed".StopOnError(ct => client.WaitForConfirmation(ct));
+```
+
+The token is the same one `TestContext.Current.CancellationToken` returns. A step that
+ignores it runs to completion after its scenario has timed out.
 
 **Output.** Inject `ITestOutputHelper` via the test class constructor; output is captured
 per step.

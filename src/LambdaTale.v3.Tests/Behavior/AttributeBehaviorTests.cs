@@ -134,8 +134,8 @@ public class AttributeBehaviorTests
         [Fact]
         public async Task BothSkipUnlessAndSkipWhenThrowsInvalidOperation()
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await ScenarioTestRunner.RunFixture<SimpleFixture>(
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ScenarioTestRunner.RunFixture<SimpleFixture>(
                     nameof(SimpleFixture.Scenario),
                     skipType: typeof(SkipFlags),
                     skipUnless: nameof(SkipFlags.ShouldRun),
@@ -147,8 +147,8 @@ public class AttributeBehaviorTests
         [Fact]
         public async Task MissingConditionalSkipPropertyThrowsInvalidOperation()
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await ScenarioTestRunner.RunFixture<SimpleFixture>(
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                ScenarioTestRunner.RunFixture<SimpleFixture>(
                     nameof(SimpleFixture.Scenario),
                     skipType: typeof(SkipFlags),
                     skipUnless: "NonExistentProperty"));
@@ -253,6 +253,6 @@ public class AttributeBehaviorTests
     private sealed class LongRunningFixture
     {
         public void Scenario() =>
-            "long-running step".x(async () => await Task.Delay(500));
+            "long-running step".x(() => Task.Delay(500));
     }
 }

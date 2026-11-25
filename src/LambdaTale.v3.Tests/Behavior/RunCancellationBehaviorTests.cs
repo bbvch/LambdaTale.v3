@@ -88,6 +88,6 @@ public class RunCancellationBehaviorTests
         }
 
         public void SlowScenario() =>
-            "Given a step slower than the timeout".x(async () => await Task.Delay(600));
+            "Given a step slower than the timeout".x(() => Task.Delay(600));
     }
 }
