@@ -1,0 +1,68 @@
+# syntax=docker/sandbox-kit:3
+# yaml-language-server: $schema=https://raw.githubusercontent.com/docker/sandbox-kit-spec/main/schema/kit.schema.json
+schemaVersion: '3'
+kind: mixin
+version: '1.0'
+
+capabilities:
+  - type: com.docker.sandbox/lifecycle@1
+    config:
+      install:
+        - description: Install essential packages
+          command: apt-get update && apt-get install -y bash-completion dialog libicu76 nano tzdata
+        - description: Install .NET SDK
+          command: |
+            set -euo pipefail
+            curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+            bash /tmp/dotnet-install.sh --version "11.0.100" --install-dir /usr/share/dotnet
+            rm -f /tmp/dotnet-install.sh
+            ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet
+            dotnet --version
+        - description: Set ENV
+          command: |
+            cat >> /etc/sandbox-persistent.sh <<'EOF'
+            export PATH="$PATH:~/.dotnet/tools"
+            EOF
+        - description: GIT aliases
+          command: |
+            git config --system alias.co checkout
+            git config --system alias.s status
+        - description: Init GIT repo
+          command: git init
+          user: '1000'
+  - type: com.docker.sandbox/network-policy@2
+    config:
+      install:
+        allow:
+          - hosts:
+              - api.nuget.org
+              - builds.dotnet.microsoft.com
+              - ci.dot.net
+              - deb.debian.org
+              - dhi.io
+              - dot.net
+            methods:
+              - GET
+              - HEAD
+      runtime:
+        allow:
+          - '*.data.mcr.microsoft.com'
+          - '*.gallery.vsassets.io'
+          - '*.gallerycdn.vsassets.io'
+          - hosts:
+              - api.github.com
+              - api.nuget.org
+              - auth.docker.io
+              - deb.debian.org
+              - dhi.io
+              - dl-cdn.alpinelinux.org
+              - github.com
+              - hub.docker.com
+              - mcr.microsoft.com
+              - production.cloudfront.docker.com
+              - registry-1.docker.io
+              - update.code.visualstudio.com
+              - vscode.download.prss.microsoft.com
+            methods:
+              - GET
+              - HEAD
