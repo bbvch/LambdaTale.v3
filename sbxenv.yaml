@@ -1,0 +1,13 @@
+schemaVersion: '1'
+name: lambdatale
+agent: sbx-kit-claude
+
+kits:
+  - docker.io/docker/sbx-kit-claude:2.1.316
+  - .sbx
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  PAGER: more
