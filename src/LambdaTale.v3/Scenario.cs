@@ -24,6 +24,12 @@ public static class Scenario
         context.Add(new ScenarioTestDefinition(tale, new TaleBody.AsynchronousTaleBody(body), onError));
     }
 
+    public static void Add(string tale, Func<CancellationToken, Task> body, OnError onError = OnError.Stop)
+    {
+        var context = Tests.Value ?? MissingContext();
+        context.Add(new ScenarioTestDefinition(tale, new TaleBody.CancellableTaleBody(body), onError));
+    }
+
     public static IEnumerable<ScenarioTestDefinition> TestDefinitions =>
         Tests.Value ?? MissingContext();
 
@@ -44,4 +50,6 @@ public abstract record TaleBody
     public sealed record SynchronousTaleBody(Action Body) : TaleBody;
 
     public sealed record AsynchronousTaleBody(Func<Task> Body) : TaleBody;
+
+    public sealed record CancellableTaleBody(Func<CancellationToken, Task> Body) : TaleBody;
 }

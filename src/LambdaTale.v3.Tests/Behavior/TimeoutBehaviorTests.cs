@@ -68,8 +68,8 @@ public class TimeoutBehaviorTests
     {
         public void ScenarioWithSlowFirstStep()
         {
-            "Given a step slower than the timeout".x(async () =>
-                await Task.Delay(StepDurationMilliseconds));
+            "Given a step slower than the timeout".x(() =>
+                Task.Delay(StepDurationMilliseconds));
             "Then a step that runs after the timeout".x(() => { });
             "And another step that runs after the timeout".x(() => { });
         }

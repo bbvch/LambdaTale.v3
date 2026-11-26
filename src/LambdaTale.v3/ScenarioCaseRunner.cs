@@ -298,6 +298,10 @@ internal static class ScenarioCaseRunner
                 return default;
             case TaleBody.AsynchronousTaleBody asyncBody:
                 return new ValueTask(asyncBody.Body.Invoke());
+            case TaleBody.CancellableTaleBody cancellable:
+                // The step's own TestContext token rather than the case's: TestContext links its own
+                // source in, so only this one also honours TestContext.Current.CancelCurrentTest().
+                return new ValueTask(cancellable.Body.Invoke(TestContext.Current.CancellationToken));
             default:
                 throw new NotSupportedException($"Unknown lambda type: {lambda.GetType()}");
         }
